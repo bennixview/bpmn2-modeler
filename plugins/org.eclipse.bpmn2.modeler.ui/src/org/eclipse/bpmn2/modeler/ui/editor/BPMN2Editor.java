@@ -218,6 +218,8 @@ import org.eclipse.graphiti.ui.editor.DiagramEditorInput;
 import org.eclipse.graphiti.ui.internal.editor.GFPaletteRoot;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.events.DisposeEvent;
+import org.eclipse.swt.events.DisposeListener;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorInput;
@@ -802,8 +804,10 @@ public class BPMN2Editor extends DiagramEditor implements IPreferenceChangeListe
 	}
 	
 	public void refreshTitle() {
-		String name = getEditorInput().getName();
-		setPartName(URI.decode(name));
+		if (getEditorInput()!=null) {
+			String name = getEditorInput().getName();
+			setPartName(URI.decode(name));
+		}
 	}
 
 	public BPMN2EditingDomainListener getEditingDomainListener() {
@@ -856,6 +860,18 @@ public class BPMN2Editor extends DiagramEditor implements IPreferenceChangeListe
 		if (required == IPropertySheetPage.class) {
 			if (propertySheetPage==null) {
 				propertySheetPage = new Bpmn2TabbedPropertySheetPage(this);
+				Display.getCurrent().asyncExec(new Runnable() {
+					@Override
+					public void run() {
+						propertySheetPage.getControl().addDisposeListener(new DisposeListener() {
+							@Override
+							public void widgetDisposed(DisposeEvent e) {
+								propertySheetPage = null;
+							}
+						});
+						
+					}
+				});
 			}
 			return propertySheetPage;
 		}
@@ -956,6 +972,7 @@ public class BPMN2Editor extends DiagramEditor implements IPreferenceChangeListe
 		removeWorkbenchListener();
 		removeMarkerChangeListener();
 		getPreferences().dispose();
+		currentInput = null;
 	}
 
 	public IPath getModelPath() {
@@ -1161,8 +1178,10 @@ public class BPMN2Editor extends DiagramEditor implements IPreferenceChangeListe
 		}
 		Display.getDefault().asyncExec(new Runnable() {
 			public void run() {
-				updateDirtyState();
-		    	refreshTitle();
+				if (getEditorInput()!=null) {
+					updateDirtyState();
+			    	refreshTitle();
+				}
 			}
 		});
 		return true;
