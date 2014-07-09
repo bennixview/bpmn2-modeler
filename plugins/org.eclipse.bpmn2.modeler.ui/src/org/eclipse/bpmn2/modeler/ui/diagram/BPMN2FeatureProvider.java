@@ -400,6 +400,9 @@ public class BPMN2FeatureProvider extends DefaultFeatureProvider implements IBpm
 		} else if (context instanceof IPictogramElementContext) {
 			return BusinessObjectUtil.getFirstElementOfType(
 					(((IPictogramElementContext) context).getPictogramElement()), EObject.class);
+		} else if (context instanceof IReconnectionContext) {
+			return BusinessObjectUtil.getFirstElementOfType(
+					(((IReconnectionContext) context).getConnection()), EObject.class);
 		}
 		return null;
 	}
@@ -416,16 +419,16 @@ public class BPMN2FeatureProvider extends DefaultFeatureProvider implements IBpm
 //		if (lfc.getApplyObject(context)!=null)
 //			return lfc;
 		
+		BPMN2Editor editor = (BPMN2Editor)getDiagramTypeProvider().getDiagramEditor();;
+		TargetRuntime rt = editor.getTargetRuntime();
 		EObject object = getApplyObject(context);
 		if (object!=null) {
-			BPMN2Editor editor = (BPMN2Editor)getDiagramTypeProvider().getDiagramEditor();;
-			TargetRuntime rt = editor.getTargetRuntime();
 			FeatureContainerDescriptor fcd = rt.getFeatureContainer(object.eClass());
 			if (fcd!=null)
 				return fcd.getFeatureContainer();
 		}
 		
-		Object id = CustomShapeFeatureContainer.getId(context); 
+		Object id = CustomElementFeatureContainer.getId(context); 
 		for (IFeatureContainer container : containers.values()) {
 			if (id!=null && !(container instanceof ICustomElementFeatureContainer))
 				continue;
@@ -434,11 +437,27 @@ public class BPMN2FeatureProvider extends DefaultFeatureProvider implements IBpm
 				return container;
 			}
 		}
+		if (id!=null) {
+			for (CustomTaskDescriptor ct : rt.getCustomTaskDescriptors()) {
+				if (id.equals(ct.getId())) {
+					ICustomElementFeatureContainer container = (ICustomElementFeatureContainer)ct.getFeatureContainer();
+					return container;
+				}
+			}
+		}
 		// last chance: check custom task feature containers
-		if (id!=null && customTaskContainers!=null) {
-			IFeatureContainer container = customTaskContainers.get(id);
-			if (container!=null && container.getApplyObject(context)!=null)
-				return container;
+		if (customTaskContainers!=null) {
+			if (id!=null) {
+				IFeatureContainer container = customTaskContainers.get(id);
+				if (container!=null && container.getApplyObject(context)!=null)
+					return container;
+			}
+			else {
+				for (IFeatureContainer container : customTaskContainers.values()) {
+					if (container.getApplyObject(context)!=null)
+						return container;
+				}
+			}
 		}
 		return null;
 	}
@@ -450,7 +469,7 @@ public class BPMN2FeatureProvider extends DefaultFeatureProvider implements IBpm
 		// problem during DIImport: the Custom Task feature containers are not added to
 		// the toolpalette until AFTER the file is loaded (in DIImport) and getAddFeature()
 		// is called during file loading.
-		Object id = CustomShapeFeatureContainer.getId(context); 
+		Object id = CustomElementFeatureContainer.getId(context); 
 		if (id!=null) {
 			BPMN2Editor editor = (BPMN2Editor)getDiagramTypeProvider().getDiagramEditor();
 			TargetRuntime rt = editor.getTargetRuntime();

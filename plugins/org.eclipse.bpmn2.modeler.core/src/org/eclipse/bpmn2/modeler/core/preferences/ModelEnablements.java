@@ -20,6 +20,7 @@ import java.util.Map.Entry;
 import org.eclipse.bpmn2.Bpmn2Package;
 import org.eclipse.bpmn2.di.BpmnDiPackage;
 import org.eclipse.bpmn2.modeler.core.features.IBpmn2CreateFeature;
+import org.eclipse.bpmn2.modeler.core.model.ModelDecorator;
 import org.eclipse.bpmn2.modeler.core.runtime.ModelExtensionDescriptor;
 import org.eclipse.bpmn2.modeler.core.runtime.TargetRuntime;
 import org.eclipse.emf.common.util.EList;
@@ -156,20 +157,11 @@ public class ModelEnablements {
 	 * @return the EClass instance or null if not found.
 	 */
 	private EClass getEClass(String className) {
-		// try the runtime package first
-		EClass eClass = (EClass)targetRuntime.getModelDescriptor().getEPackage().getEClassifier(className);
-		// then all BPMN2 packages
-		if (eClass==null)
-			eClass = (EClass)Bpmn2Package.eINSTANCE.getEClassifier(className);
-		if (eClass==null)
-			eClass = (EClass)BpmnDiPackage.eINSTANCE.getEClassifier(className);
-		
-		// TODO: do we need these?
-//		if (eClass==null)
-//			eClass = (EClass)DcPackage.eINSTANCE.getEClassifier(className);
-//		if (eClass==null)
-//			eClass = (EClass)DiPackage.eINSTANCE.getEClassifier(className);
-		return eClass;
+		EClassifier eClassifier = ModelDecorator.findEClassifier(
+				targetRuntime.getModelDescriptor().getEPackage(), className);
+		if (eClassifier instanceof EClass)
+			return (EClass) eClassifier;
+		return null;
 	}
 	
 	private void setEnabledSingle(EClass eClass, boolean enabled) {
@@ -373,7 +365,6 @@ public class ModelEnablements {
 
 		if (className==null)
 			return true;
-		
 		if (classes.containsKey(className)) { // && isOverride()) {
 			if (featureName!=null && !featureName.isEmpty()) {
 				// the "anyAttribute" FeatureMap should always be enabled,
@@ -401,35 +392,11 @@ public class ModelEnablements {
 						}
 					}
 				}
-				if (isEnabled(targetRuntime, className, featureName))
-					return true;
 				return false;
 			}
 			return true;
 		}
-		
-		// Check any model extensions - these are always enabled by default
-		// This is an expensive operation, so we'll cache these values.
-		//
-		// FIXME: if there ever comes a time when we'll want to reload model extensions
-		// while the editor is still active, we'll need to clear out this cache.
-		if (isEnabled(targetRuntime, className, featureName))
-			return true;
-		
-		// FIXME: should we also check the Default Target Runtime extensions?
-//		if (targetRuntime!=TargetRuntime.getDefaultRuntime())
-//			return isEnabled(TargetRuntime.getDefaultRuntime(), className, featureName);
 
-		return false;
-	}
-	
-	private boolean isEnabled(TargetRuntime targetRuntime, String className, String featureName) {
-		for (ModelExtensionDescriptor md : targetRuntime.getAllModelExtensionDescriptors()) {
-			if (md.isDefined(className, featureName)) {
-				setEnabled(className, featureName, true);
-				return true;
-			}
-		}
 		return false;
 	}
 	

@@ -35,7 +35,6 @@ import org.eclipse.emf.ecore.util.FeatureMap.Entry;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.ui.forms.widgets.Section;
 
 public class DefaultDetailComposite extends AbstractDetailComposite {
 
@@ -155,10 +154,11 @@ public class DefaultDetailComposite extends AbstractDetailComposite {
 							feature = getFeature((EObject)o,featureName);
 							composite = bindProperty((EObject)o, property);
 							if (composite instanceof AbstractListComposite) {
+								EClass listItemClass = ((AbstractListComposite)composite).getDefaultListItemClass((EObject)o, feature);
 								((AbstractListComposite)composite).setTitle(
 									NLS.bind(
 										Messages.DefaultDetailComposite_List_Title,
-										getBusinessObjectDelegate().getLabel((EObject)o,feature),
+										getBusinessObjectDelegate().getLabel(listItemClass),
 										ModelUtil.toCanonicalString((EObject)o)
 									)
 								);
