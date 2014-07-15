@@ -15,7 +15,6 @@ package org.eclipse.bpmn2.modeler.ui.adapters.properties;
 
 import org.eclipse.bpmn2.Bpmn2Package;
 import org.eclipse.bpmn2.Task;
-import org.eclipse.bpmn2.modeler.core.adapters.ExtendedPropertiesAdapter;
 import org.eclipse.emf.common.notify.AdapterFactory;
 
 /**
@@ -33,5 +32,4 @@ public class TaskPropertiesAdapter<T extends Task> extends ActivityPropertiesAda
     	setProperty(Bpmn2Package.eINSTANCE.getInteractionNode_IncomingConversationLinks(), UI_CAN_CREATE_NEW, Boolean.FALSE);
     	setProperty(Bpmn2Package.eINSTANCE.getInteractionNode_OutgoingConversationLinks(), UI_CAN_CREATE_NEW, Boolean.FALSE);
 	}
-
 }

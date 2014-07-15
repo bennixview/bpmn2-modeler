@@ -98,8 +98,9 @@ public class ImportUtil {
 			kind = IMPORT_KIND_JAVA;
 		else if (IMPORT_TYPE_BPMN2.equals(type))
 			kind = "bpmn"; //$NON-NLS-1$
-		else
-			return null;
+		else {
+			throw new IllegalArgumentException("Unsupported Import type: "+type);
+		}
 		String location = imp.getLocation();
 		if (location==null) {
 			location = ""; //$NON-NLS-1$
@@ -280,6 +281,24 @@ public class ImportUtil {
 		}
 		return null;
 	}
+	
+	// FIXME: {@see ICustomElementFeatureContainer#getId(EObject)}
+	public static String getImportKind(Object object) {
+		String kind = null;
+		if (object instanceof IFile) {
+			String ext = ((IFile)object).getFileExtension();
+			if ("xml".equals(ext) || "xsd".equals(ext))
+				kind = IMPORT_KIND_XML_SCHEMA;
+			else if ("bpmn".equals(ext) || "bpmn2".equals(ext))
+				kind = IMPORT_KIND_BPMN2;
+			else if ("wsdl".equals(ext))
+				kind = IMPORT_KIND_WSDL;
+		}
+		else if (object instanceof IType) {
+			kind = IMPORT_KIND_JAVA;
+		}
+		return kind;
+	}		
 	
 	public Object loadImport(URI uri, String kind) {
 		return loadImport(this.fHackedResourceSet, uri, kind);

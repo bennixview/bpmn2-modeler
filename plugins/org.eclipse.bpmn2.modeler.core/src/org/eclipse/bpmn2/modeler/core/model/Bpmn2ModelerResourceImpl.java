@@ -72,6 +72,7 @@ import org.eclipse.dd.dc.Point;
 import org.eclipse.dd.di.DiPackage;
 import org.eclipse.dd.di.DiagramElement;
 import org.eclipse.emf.common.notify.Adapter;
+import org.eclipse.emf.common.util.BasicDiagnostic;
 import org.eclipse.emf.common.util.BasicEList;
 import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
@@ -299,27 +300,29 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 					super.load(resource, inputStream, options);
 				}
 				catch (Exception e) {
-					DiagnosticWrappedException error = new DiagnosticWrappedException(e);
+					BPMNDiagnostic error = new BPMNDiagnostic(e.getMessage());
 					error.setLine(handler.getLineNumber());
 					error.setColumn(handler.getColumnNumber());
 					error.setLocation(handler.getLocation());
-					resource.getErrors().add(error);
+					if (!resource.getErrors().contains(error))
+						resource.getErrors().add(error);
 					throw new IOException(e);
 				}
 			}
 		};
 	}
 
-	class DiagnosticWrappedException extends WrappedException implements Resource.Diagnostic {
-		private static final long serialVersionUID = 1L;
+	static class BPMNDiagnostic implements Resource.Diagnostic {
+
+		private String message;
 		private String location;
 		private int column;
 		private int line;
-		
-		public DiagnosticWrappedException(Exception exception) {
-			super(exception);
-		}
 
+		public BPMNDiagnostic(String message) {
+			this.message = message;
+		}
+		
 		public void setLocation(String location) {
 			this.location = location;
 		}
@@ -342,6 +345,26 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 
 		public int getLine() {
 			return line;
+		}
+
+		public String getMessage() {
+			return message;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (obj instanceof BPMNDiagnostic) {
+				BPMNDiagnostic that = (BPMNDiagnostic)obj;
+				return
+						this.message.equals(that.message) &&
+						this.line==that.line &&
+						this.column==that.column;
+			}
+			else if (obj instanceof Exception) {
+				String message = ((Exception)obj).getMessage();
+				return this.message.equals(message);
+			}
+			return super.equals(obj);
 		}
 	}
 
@@ -405,7 +428,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 	 */
 	protected static class Bpmn2ModelerXmlHandler extends BpmnXmlHandler {
 
-		Bpmn2Preferences prefs = null;
+		Bpmn2Preferences preferences = null;
 		ImportUtil importHandler = new ImportUtil();
 		String targetNamespace = null;
 
@@ -417,6 +440,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 		public void startDocument() {
 			super.startDocument();
 			Bpmn2ModelerFactory.setEnableModelExtensions(false);
+			preferences = Bpmn2Preferences.getInstance(xmlResource);
 		}
 
 		@Override
@@ -438,10 +462,19 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			}
 			// Load all of the Imports and generate Interfaces, Operations, Messages, Faults and ItemDefinitions
 			for (Import imp : definitions.getImports()) {
-            	Object importObject = importHandler.loadImport(imp);
-            	if (importObject!=null) {
-            		importHandler.addImportObjects(imp, importObject);
-            	}
+				try {
+	            	Object importObject = importHandler.loadImport(imp);
+	            	if (importObject!=null) {
+	            		importHandler.addImportObjects(imp, importObject);
+	            	}
+				}
+				catch (Exception e) {
+					BPMNDiagnostic error = new BPMNDiagnostic(e.getMessage());
+					error.setLine(getLineNumber());
+					error.setColumn(getColumnNumber());
+					error.setLocation(getLocation());
+					xmlResource.getErrors().add(error);
+				}
             }
 			
 			// Fix up the descriptions for BPMNDiagrams
@@ -460,40 +493,24 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			if (isEndDocument) {
 				List<SingleReference> resolved = new ArrayList<SingleReference>();
 				for (SingleReference ref : forwardSingleReferences) {
-					EObject obj = null;
-					RuntimeException cause = null;
+					EObject referencedObject = null;
 					try {
-						obj = xmlResource.getEObject((String) ref.getValue());
-					} catch (RuntimeException exception) {
-						cause = exception;
-					}
-					if (obj==null) {
+						referencedObject = xmlResource.getEObject((String) ref.getValue());
+					} catch (RuntimeException exception) {}
+					if (referencedObject==null) {
 						// The forward reference may be in an external document.
 						// Check the reference type and its owner, then search
 						// external documents contained in the same project.
-						EObject ro = ref.getObject();
-						EStructuralFeature rf = ref.getFeature();
+						EObject referencingObject = ref.getObject();
+						EStructuralFeature referencingFeature = ref.getFeature();
 						String id = (String) ref.getValue();
-						obj = importHandler.resolveExternalReference(ro, rf, id);
-						if (obj != null) {
+						referencedObject = importHandler.resolveExternalReference(referencingObject, referencingFeature, id);
+						if (referencedObject != null) {
 							resolved.add(ref);
-							Resource r = obj.eResource();
-							IPath path = new Path(r.getURI().toPlatformString(true));
-							boolean doit = MessageDialog.openQuestion(new Shell(),
-									Messages.Bpmn2ModelerResourceSetImpl_External_Reference_Found_Title,
-									NLS.bind(
-											Messages.Bpmn2ModelerResourceSetImpl_External_Reference_Found_Message,
-											new Object[] {
-												obj.eClass().getName(),
-												id,
-												ModelUtil.getLabel(ro)+" \""+ModelUtil.getName((BaseElement)ro)+"\"",
-												path.toString()}
-									)
-								);
-							if (doit) {
-								importHandler.addImport(xmlResource, ModelUtil.getDefinitions(obj));
-								xmlResource.getResourceSet().getResources().add(obj.eResource());
-						        setFeatureValue(ro, rf, obj, ref.getPosition());
+							if (shouldResolveExternals(referencingObject, referencedObject, id)) {
+								importHandler.addImport(xmlResource, ModelUtil.getDefinitions(referencedObject));
+								xmlResource.getResourceSet().getResources().add(referencedObject.eResource());
+						        setFeatureValue(referencingObject, referencingFeature, referencedObject, ref.getPosition());
 							}
 						}
 					}
@@ -504,6 +521,42 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			super.handleForwardReferences(isEndDocument);
 		}
 
+		/**
+		 * Check if the loader should allow external references to other files
+		 * in the project. This is controlled by a User Preference setting.
+		 * 
+		 * @param referencingObject the object referencing an external object.
+		 * @param referencedObject the referenced object contained in another
+		 *            file in the project.
+		 * @param id the ID string of the referenced object.
+		 * @return true if externals should be resolved, false to cause an error
+		 *         for missing references.
+		 */
+		private boolean shouldResolveExternals(EObject referencingObject, EObject referencedObject, String id) {
+			if (preferences.getResolveExternals()==0)
+				return false;
+			if (preferences.getResolveExternals()==1)
+				return true;
+			try {
+				Resource resource = referencedObject.eResource();
+				IPath path = new Path(resource.getURI().toPlatformString(true));
+				boolean doit = MessageDialog.openQuestion(new Shell(),
+						Messages.Bpmn2ModelerResourceSetImpl_External_Reference_Found_Title,
+						NLS.bind(
+								Messages.Bpmn2ModelerResourceSetImpl_External_Reference_Found_Message,
+								new Object[] {
+									referencedObject.eClass().getName(),
+									id,
+									ModelUtil.getLabel(referencingObject)+" \""+ModelUtil.getName((BaseElement)referencingObject)+"\"",
+									path.toString()}
+						)
+					);
+				return doit;
+			}
+			catch (Exception e) {}
+			return true;
+		}
+		
 		@Override
 		protected EStructuralFeature getFeature(EObject object, String prefix, String name, boolean isElement) {
 			EStructuralFeature feature = null;
@@ -643,7 +696,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 						String value = attribs.getValue(i);
 						map.put(key, value);
 					}
-					Bpmn2Preferences.getInstance(this.resourceURI).applyBPMNDIDefaults(bpmnShape, map);
+					preferences.applyBPMNDIDefaults(bpmnShape, map);
 				}
 			}
 			else if (obj instanceof ItemDefinition) {
