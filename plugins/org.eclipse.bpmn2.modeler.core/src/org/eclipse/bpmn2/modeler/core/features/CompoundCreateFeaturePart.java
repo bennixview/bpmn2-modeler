@@ -23,6 +23,7 @@ import org.eclipse.bpmn2.modeler.core.runtime.TargetRuntime;
 import org.eclipse.bpmn2.modeler.core.runtime.ToolPaletteDescriptor;
 import org.eclipse.bpmn2.modeler.core.utils.AnchorUtil;
 import org.eclipse.bpmn2.modeler.core.utils.BusinessObjectUtil;
+import org.eclipse.bpmn2.modeler.core.utils.GraphicsUtil;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EFactory;
@@ -39,6 +40,7 @@ import org.eclipse.graphiti.features.context.impl.CreateConnectionContext;
 import org.eclipse.graphiti.features.context.impl.CreateContext;
 import org.eclipse.graphiti.features.context.impl.UpdateContext;
 import org.eclipse.graphiti.mm.algorithms.styles.Point;
+import org.eclipse.graphiti.mm.pictograms.AnchorContainer;
 import org.eclipse.graphiti.mm.pictograms.Connection;
 import org.eclipse.graphiti.mm.pictograms.ContainerShape;
 import org.eclipse.graphiti.mm.pictograms.Diagram;
@@ -282,10 +284,10 @@ public class CompoundCreateFeaturePart<CONTEXT> {
 			if (target==null)
 				target = ((ICreateConnectionContext)context).getTargetPictogramElement();
 			
-			Point sp = AnchorUtil.getCenterPoint((Shape)source);
-			Point tp = AnchorUtil.getCenterPoint((Shape)target);
-			FixPointAnchor sourceAnchor = AnchorUtil.findNearestAnchor((Shape)source, tp);
-			FixPointAnchor targetAnchor = AnchorUtil.findNearestAnchor((Shape)target, sp);
+			Point sp = GraphicsUtil.getShapeCenter((AnchorContainer)source);
+			Point tp = GraphicsUtil.getShapeCenter((AnchorContainer)target);
+			FixPointAnchor sourceAnchor = AnchorUtil.createAnchor((AnchorContainer)source, tp);
+			FixPointAnchor targetAnchor = AnchorUtil.createAnchor((AnchorContainer)target, sp);
 			cc.setSourcePictogramElement(source);
 			cc.setTargetPictogramElement(target);
 			cc.setSourceAnchor(sourceAnchor);

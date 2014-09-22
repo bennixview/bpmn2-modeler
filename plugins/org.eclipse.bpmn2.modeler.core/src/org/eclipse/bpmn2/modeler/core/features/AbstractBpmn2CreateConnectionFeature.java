@@ -19,7 +19,7 @@ import org.eclipse.bpmn2.Bpmn2Package;
 import org.eclipse.bpmn2.EndEvent;
 import org.eclipse.bpmn2.Event;
 import org.eclipse.bpmn2.Group;
-import org.eclipse.bpmn2.ItemAwareElement;
+import org.eclipse.bpmn2.Lane;
 import org.eclipse.bpmn2.SequenceFlow;
 import org.eclipse.bpmn2.modeler.core.LifecycleEvent;
 import org.eclipse.bpmn2.modeler.core.LifecycleEvent.EventType;
@@ -41,7 +41,6 @@ import org.eclipse.graphiti.features.IFeatureAndContext;
 import org.eclipse.graphiti.features.IFeatureProvider;
 import org.eclipse.graphiti.features.context.IContext;
 import org.eclipse.graphiti.features.context.ICreateConnectionContext;
-import org.eclipse.graphiti.features.context.ICreateContext;
 import org.eclipse.graphiti.features.context.IReconnectionContext;
 import org.eclipse.graphiti.features.context.impl.AddConnectionContext;
 import org.eclipse.graphiti.features.context.impl.CreateConnectionContext;
@@ -50,8 +49,8 @@ import org.eclipse.graphiti.features.impl.AbstractCreateConnectionFeature;
 import org.eclipse.graphiti.mm.pictograms.Anchor;
 import org.eclipse.graphiti.mm.pictograms.AnchorContainer;
 import org.eclipse.graphiti.mm.pictograms.Connection;
+import org.eclipse.graphiti.mm.pictograms.Diagram;
 import org.eclipse.graphiti.mm.pictograms.PictogramElement;
-import org.eclipse.graphiti.mm.pictograms.Shape;
 import org.eclipse.graphiti.services.Graphiti;
 import org.eclipse.graphiti.ui.editor.DiagramEditor;
 import org.eclipse.osgi.util.NLS;
@@ -157,7 +156,8 @@ public abstract class AbstractBpmn2CreateConnectionFeature<
 	 */
 	@Override
 	public boolean canStartConnection(ICreateConnectionContext context) {
-		return getSourceBo(context) != null;
+		EObject o = getSourceBo(context);
+		return o != null && !(o instanceof Lane);
 	}
 
 	/**
@@ -172,38 +172,47 @@ public abstract class AbstractBpmn2CreateConnectionFeature<
 	 * @return true, if the connection is allowed
 	 */
 	public static boolean canCreateConnection(AnchorContainer sourceContainer, AnchorContainer targetContainer, EClass connectionClass, String reconnectType) {
+		if (sourceContainer instanceof Diagram || targetContainer instanceof Diagram)
+			return false;
+		if (sourceContainer == targetContainer)
+			return true;
 		if (sourceContainer!=null && targetContainer!=null) {
 			// Make sure only one connection of each type is created for the same
 			// source and target objects, i.e. you can't have two SequenceFlows
 			// with the same source and target objects.
-			for (Anchor sourceAnchor : sourceContainer.getAnchors()) {
-				for (Connection sourceConnection : sourceAnchor.getOutgoingConnections()) {
-					EObject sourceObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceConnection);
-					if (connectionClass==Bpmn2Package.eINSTANCE.getDataAssociation()) {
-						// Ugh! Special case for DataAssociations: we may have
-						// an Activity with both a DataOutputAssociation and a
-						// DataInputAssociation to the same ItemAwareElement
-						EObject o = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceContainer);
-						if (o instanceof ItemAwareElement)
-							connectionClass = Bpmn2Package.eINSTANCE.getDataInputAssociation();
-						else
-							connectionClass = Bpmn2Package.eINSTANCE.getDataOutputAssociation();
-					}
-					if (sourceObject!=null && sourceObject.eClass() == connectionClass) {
-						if (sourceConnection.getEnd().getParent() == targetContainer)
-							return false;
-					}
-				}
-			}
+//			for (Anchor sourceAnchor : sourceContainer.getAnchors()) {
+//				for (Connection sourceConnection : sourceAnchor.getOutgoingConnections()) {
+//					EObject sourceObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceConnection);
+//					if (connectionClass==Bpmn2Package.eINSTANCE.getDataAssociation()) {
+//						// Ugh! Special case for DataAssociations: we may have
+//						// an Activity with both a DataOutputAssociation and a
+//						// DataInputAssociation to the same ItemAwareElement
+//						EObject o = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceContainer);
+//						if (o instanceof ItemAwareElement)
+//							connectionClass = Bpmn2Package.eINSTANCE.getDataInputAssociation();
+//						else
+//							connectionClass = Bpmn2Package.eINSTANCE.getDataOutputAssociation();
+//					}
+//					if (sourceObject!=null && sourceObject.eClass() == connectionClass) {
+//						if (sourceConnection.getEnd().getParent() == targetContainer)
+//							return false;
+//					}
+//				}
+//			}
+			EObject sourceObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceContainer);
+			if (sourceObject instanceof Lane)
+				return false;
+			EObject targetObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(targetContainer);
+			if (targetObject instanceof Lane)
+				return false;
 			
 			Bpmn2Preferences prefs = Bpmn2Preferences.getInstance(sourceContainer);
 			if (!prefs.getAllowMultipleConnections() && connectionClass==Bpmn2Package.eINSTANCE.getSequenceFlow()) {
 				// if User Preferences don't allow multiple incoming/outgoing
 				// connections on Activities, enforce it here.
-				EObject businessObject;
 				if (!ReconnectionContext.RECONNECT_TARGET.equals(reconnectType)) {
-					businessObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceContainer);
-					if (businessObject instanceof Activity || businessObject instanceof Event) {
+					sourceObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(sourceContainer);
+					if (sourceObject instanceof Activity || sourceObject instanceof Event) {
 						for (Anchor a : sourceContainer.getAnchors()) {
 							for (Connection c : a.getOutgoingConnections()) {
 								EObject o = BusinessObjectUtil.getBusinessObjectForPictogramElement(c);
@@ -216,8 +225,8 @@ public abstract class AbstractBpmn2CreateConnectionFeature<
 				}
 				
 				if (!ReconnectionContext.RECONNECT_SOURCE.equals(reconnectType)) {
-					businessObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(targetContainer);
-					if (businessObject instanceof Activity || businessObject instanceof Event) {
+					targetObject = BusinessObjectUtil.getBusinessObjectForPictogramElement(targetContainer);
+					if (targetObject instanceof Activity || targetObject instanceof Event) {
 						for (Anchor a : targetContainer.getAnchors()) {
 							for (Connection c : a.getIncomingConnections()) {
 								EObject o = BusinessObjectUtil.getBusinessObjectForPictogramElement(c);

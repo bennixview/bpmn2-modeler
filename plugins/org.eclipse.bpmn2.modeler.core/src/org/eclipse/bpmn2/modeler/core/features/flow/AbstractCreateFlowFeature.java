@@ -12,21 +12,16 @@
  ******************************************************************************/
 package org.eclipse.bpmn2.modeler.core.features.flow;
 
-import java.util.List;
-
+import org.eclipse.bpmn2.Activity;
 import org.eclipse.bpmn2.Association;
 import org.eclipse.bpmn2.BaseElement;
-import org.eclipse.bpmn2.Bpmn2Package;
 import org.eclipse.bpmn2.ChoreographyTask;
 import org.eclipse.bpmn2.Collaboration;
 import org.eclipse.bpmn2.Conversation;
 import org.eclipse.bpmn2.ConversationLink;
 import org.eclipse.bpmn2.ConversationNode;
 import org.eclipse.bpmn2.Definitions;
-import org.eclipse.bpmn2.EndEvent;
-import org.eclipse.bpmn2.EventDefinition;
 import org.eclipse.bpmn2.FlowElementsContainer;
-import org.eclipse.bpmn2.MessageEventDefinition;
 import org.eclipse.bpmn2.MessageFlow;
 import org.eclipse.bpmn2.Participant;
 import org.eclipse.bpmn2.Process;
@@ -34,22 +29,25 @@ import org.eclipse.bpmn2.SequenceFlow;
 import org.eclipse.bpmn2.SubChoreography;
 import org.eclipse.bpmn2.SubProcess;
 import org.eclipse.bpmn2.modeler.core.features.AbstractBpmn2CreateConnectionFeature;
-import org.eclipse.bpmn2.modeler.core.features.GraphitiConstants;
 import org.eclipse.bpmn2.modeler.core.utils.AnchorUtil;
 import org.eclipse.bpmn2.modeler.core.utils.FeatureSupport;
+import org.eclipse.bpmn2.modeler.core.utils.GraphicsUtil;
 import org.eclipse.bpmn2.modeler.core.utils.ModelUtil;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.graphiti.datatypes.ILocation;
 import org.eclipse.graphiti.features.IFeatureProvider;
 import org.eclipse.graphiti.features.context.ICreateConnectionContext;
 import org.eclipse.graphiti.features.context.impl.AddConnectionContext;
+import org.eclipse.graphiti.features.context.impl.CreateConnectionContext;
 import org.eclipse.graphiti.mm.algorithms.styles.Point;
+import org.eclipse.graphiti.mm.pictograms.Anchor;
 import org.eclipse.graphiti.mm.pictograms.AnchorContainer;
+import org.eclipse.graphiti.mm.pictograms.ChopboxAnchor;
 import org.eclipse.graphiti.mm.pictograms.Connection;
+import org.eclipse.graphiti.mm.pictograms.FixPointAnchor;
 import org.eclipse.graphiti.mm.pictograms.FreeFormConnection;
-import org.eclipse.graphiti.mm.pictograms.Shape;
+import org.eclipse.graphiti.mm.pictograms.PictogramElement;
 import org.eclipse.graphiti.services.Graphiti;
-import org.eclipse.graphiti.services.IGaService;
 import org.eclipse.graphiti.services.IPeService;
 
 public abstract class AbstractCreateFlowFeature<
@@ -95,39 +93,65 @@ public abstract class AbstractCreateFlowFeature<
 		Connection connection = null;
 		CONNECTION businessObject = createBusinessObject(context);
 		if (businessObject!=null) {
+			AnchorContainer source = (AnchorContainer) context.getSourcePictogramElement();
+			// If source shape is a Label, replace it with its owner.
+			if (FeatureSupport.isLabelShape(source))
+				source = (AnchorContainer) FeatureSupport.getLabelOwner(source);
+			AnchorContainer target = (AnchorContainer) context.getTargetPictogramElement();
+			// Same for target shape
+			if (FeatureSupport.isLabelShape(target))
+				target = (AnchorContainer) FeatureSupport.getLabelOwner(target);
+			Anchor sourceAnchor = context.getSourceAnchor();
+			Anchor targetAnchor = context.getTargetAnchor();
+			ILocation sourceLoc = context.getSourceLocation();
+			ILocation targetLoc = context.getTargetLocation();
+			Point p;
+			// need to create a source anchor?
+			if (sourceAnchor==null || sourceAnchor instanceof ChopboxAnchor) {
+				if (sourceLoc!=null) {
+					// use the source location if available
+					p = GraphicsUtil.createPoint(sourceLoc);
+				}
+				else if (targetLoc!=null) {
+					// or the target location
+					p = GraphicsUtil.createPoint(targetLoc);
+				}
+				else if (targetAnchor!=null) {
+					// the target anchor as a reference point
+					p = GraphicsUtil.createPoint(targetAnchor);
+				}
+				else {
+					// fallback is to use the center point of the
+					// target PE as the reference point
+					p = GraphicsUtil.getShapeCenter(target);
+				}
+				sourceAnchor = AnchorUtil.createAnchor(source, p);	
+			}
+			
+			// same thing for target anchor
+			if (targetAnchor==null || targetAnchor instanceof ChopboxAnchor) {
+				if (targetLoc!=null) {
+					p = GraphicsUtil.createPoint(targetLoc);
+				}
+				else if (sourceLoc!=null) {
+					p = GraphicsUtil.createPoint(sourceLoc);
+				}
+				else if (sourceAnchor!=null) {
+					// the target anchor as a reference point
+					p = GraphicsUtil.createPoint(sourceAnchor);
+				}
+				else {
+					p = GraphicsUtil.getShapeCenter(source);
+				}
+				targetAnchor = AnchorUtil.createAnchor(target, p);	
+			}
+			
+			((CreateConnectionContext)context).setSourceAnchor(sourceAnchor);
+			((CreateConnectionContext)context).setTargetAnchor(targetAnchor);
 			AddConnectionContext addContext = createAddConnectionContext(context, businessObject);
 			addContext.setNewObject(businessObject);
-	
-			IPeService peService = Graphiti.getPeService();
-			IGaService gaService = Graphiti.getGaService();
-			ILocation loc, shapeLoc;
-			
-			// the CreateConnectionContext contains the source and target locations - the actual
-			// mouse locations where the connection was started and ended. These locations must
-			// be passed to the AddConnectionContext so they can be added (as String properties)
-			// to the Connection once it is created. These String properties are then decoded in
-			// AnchorUtil.getSourceAndTargetBoundaryAnchors() to create Ad Hoc anchors if necessary.
-			loc = context.getSourceLocation();
-			if (loc==null)
-				loc = peService.getLocationRelativeToDiagram(context.getSourceAnchor());
-			shapeLoc = peService.getLocationRelativeToDiagram((Shape)context.getSourceAnchor().getParent());
-			Point p = gaService.createPoint(
-					loc.getX() - shapeLoc.getX(),
-					loc.getY() - shapeLoc.getY());
-			addContext.putProperty(GraphitiConstants.CONNECTION_SOURCE_LOCATION, p);
-			
-			loc = context.getTargetLocation();
-			if (loc==null)
-				loc = peService.getLocationRelativeToDiagram(context.getTargetAnchor());
-			shapeLoc = peService.getLocationRelativeToDiagram((Shape)context.getTargetAnchor().getParent());
-			p = gaService.createPoint(
-					loc.getX() - shapeLoc.getX(),
-					loc.getY() - shapeLoc.getY());
-			addContext.putProperty(GraphitiConstants.CONNECTION_TARGET_LOCATION, p);
-			addContext.putProperty(GraphitiConstants.CONNECTION_CREATED, Boolean.TRUE);
-	
+
 			connection = (Connection) getFeatureProvider().addIfPossible(addContext);
-			ModelUtil.setID(businessObject);
 	
 			FeatureSupport.updateConnection(getFeatureProvider(), connection);
 	
@@ -138,7 +162,7 @@ public abstract class AbstractCreateFlowFeature<
 		
 		return connection;
 	}
-
+	
 	@Override
 	public CONNECTION createBusinessObject(ICreateConnectionContext context) {
 		CONNECTION businessObject = super.createBusinessObject(context);
@@ -246,6 +270,16 @@ public abstract class AbstractCreateFlowFeature<
 			}
 		}
 		else if (connection instanceof MessageFlow) {
+			if (source instanceof Activity) {
+				EObject container = source.eContainer();
+				while (container!=null) {
+					if (container instanceof Process) {
+						source = (SOURCE) container;
+						break;
+					}
+					container = container.eContainer();
+				}
+			}
 			if (source instanceof Process) {
 				// find the Collaboration that owns this Process
 				Definitions definitions = ModelUtil.getDefinitions(source);

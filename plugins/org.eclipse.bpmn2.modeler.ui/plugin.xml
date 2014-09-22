@@ -507,8 +507,7 @@
 		<propertyTab
 			id="org.eclipse.bpmn2.modeler.linkEvent.tab"
 			afterTab="org.eclipse.bpmn2.modeler.description.tab"
-			class="default"
-			features="name"
+			class="org.eclipse.bpmn2.modeler.ui.property.events.LinkEventDefinitionPropertySection"
 			type="org.eclipse.bpmn2.LinkEventDefinition"
 			label="%propertyTab.label.LinkEvent">
 		</propertyTab>
@@ -1282,6 +1281,25 @@
 	       id= "createCollaboration"
 	       label= "%command.label.1">
 	    </command>
+	</menuContribution>
+	 <menuContribution
+	    locationURI= "menu:org.eclipse.ui.view.menu?after=additions">
+	    <menu
+	       id="org.eclipse.bpmn2.modeler.hide.menu"
+	       label="Hide Elements">
+        <command
+          commandId="show.hide.elements"
+          label="Hide Elements">
+        </command>
+        <visibleWhen>
+           <with
+                 variable="activeEditorId">
+              <equals
+                    value="org.eclipse.bpmn2.modeler.ui.bpmn2editor">
+              </equals>
+           </with>
+        </visibleWhen>
+	    </menu>
 	</menuContribution>
 	</extension>
 	

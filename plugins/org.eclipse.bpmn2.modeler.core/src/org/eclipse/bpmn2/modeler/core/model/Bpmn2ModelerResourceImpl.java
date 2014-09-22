@@ -41,6 +41,7 @@ import org.eclipse.bpmn2.RootElement;
 import org.eclipse.bpmn2.di.BPMNDiagram;
 import org.eclipse.bpmn2.di.BPMNEdge;
 import org.eclipse.bpmn2.di.BPMNLabel;
+import org.eclipse.bpmn2.di.BPMNLabelStyle;
 import org.eclipse.bpmn2.di.BPMNPlane;
 import org.eclipse.bpmn2.di.BPMNShape;
 import org.eclipse.bpmn2.di.BpmnDiPackage;
@@ -64,6 +65,7 @@ import org.eclipse.bpmn2.util.XmlExtendedMetadata;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.dd.dc.Bounds;
 import org.eclipse.dd.dc.DcFactory;
@@ -72,14 +74,12 @@ import org.eclipse.dd.dc.Point;
 import org.eclipse.dd.di.DiPackage;
 import org.eclipse.dd.di.DiagramElement;
 import org.eclipse.emf.common.notify.Adapter;
-import org.eclipse.emf.common.util.BasicDiagnostic;
 import org.eclipse.emf.common.util.BasicEList;
 import org.eclipse.emf.common.util.ECollections;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.EMap;
 import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.common.util.URI;
-import org.eclipse.emf.common.util.WrappedException;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EClassifier;
 import org.eclipse.emf.ecore.EFactory;
@@ -94,6 +94,7 @@ import org.eclipse.emf.ecore.util.EObjectWithInverseEList;
 import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.eclipse.emf.ecore.util.ExtendedMetaData;
 import org.eclipse.emf.ecore.util.FeatureMap;
+import org.eclipse.emf.ecore.util.FeatureMapUtil;
 import org.eclipse.emf.ecore.xmi.XMLHelper;
 import org.eclipse.emf.ecore.xmi.XMLLoad;
 import org.eclipse.emf.ecore.xmi.XMLResource;
@@ -102,6 +103,7 @@ import org.eclipse.emf.ecore.xmi.impl.ElementHandlerImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMLLoadImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMLSaveImpl;
 import org.eclipse.emf.ecore.xmi.impl.XMLString;
+import org.eclipse.emf.ecore.xml.type.XMLTypePackage;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.widgets.Shell;
@@ -356,7 +358,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			if (obj instanceof BPMNDiagnostic) {
 				BPMNDiagnostic that = (BPMNDiagnostic)obj;
 				return
-						this.message.equals(that.message) &&
+						(this.message!=null && this.message.equals(that.message)) &&
 						this.line==that.line &&
 						this.column==that.column;
 			}
@@ -683,6 +685,11 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 							}
 						}
 					}
+					else if (name.startsWith(XMLResource.XML_NS+":")) {
+						String prefix = name.substring(name.indexOf(':')+1);
+						String namespace = attribs.getValue(i);
+	            		NamespaceUtil.addNamespace(xmlResource, prefix, namespace);
+					}
 				}
 			}
 
@@ -754,7 +761,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 						// this thing is in another namespace, possibly in an external document
 						Import imp = importHandler.findImportForNamespace(helper.getResource(), namespace);
 						if (imp!=null) {
-							value = importHandler.getObjectForLocalname(imp, object, eReference, localname);
+							value = importHandler.getObjectForId(imp, object, eReference, ids);
 						}
 					}
 				}
@@ -826,7 +833,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 //		    	TargetRuntime rt = TargetRuntime.getCurrentRuntime();
 //		    	rt.createModelExtensions(peekObject.eResource());
 //		    }
-            if (peekObject!=null && peekObject.eClass() == Bpmn2Package.eINSTANCE.getExpression()) {
+            if (peekObject!=null && peekObject.getClass()==Expression.class) {
             	// If the element is an Expression (not a FormalExpression) then use the CDATA
             	// as the body of a Formal Expression (because Expression does not have a body)
                 text = new StringBuffer();
@@ -836,7 +843,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 		@Override
         public void endElement(String uri, String localName, String name) {
             EObject peekObject = objects.peek();
-            if (peekObject instanceof Expression) {
+            if (peekObject!=null && peekObject.getClass()==Expression.class) {
             	// if the element is an Expression, replace it with a FormalExpression and set
             	// its body using the CDATA of the Expression element.
    				FormalExpression fe = Bpmn2Factory.eINSTANCE.createFormalExpression();
@@ -873,6 +880,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 		protected float minY = Float.MAX_VALUE;
 		protected int lineNum = 1;
 		protected int lineOffset = 0;
+		protected Bpmn2Preferences preferences;
 
 		@SuppressWarnings("serial")
 		protected class Bpmn2ModelerXMLString extends XMLString {
@@ -927,6 +935,7 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 		public Bpmn2ModelerXMLSave(XMLHelper helper) {
 			super(helper);
 			helper.getPrefixToNamespaceMap().clear();
+			preferences = Bpmn2Preferences.getInstance(helper.getResource());
 		}
 
 		@Override
@@ -956,6 +965,38 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			}
 			
 			doc = createXMLString();
+			
+        	if (contents.size()>0 && contents.get(0) instanceof Bpmn2ModelerDocumentRootImpl) {
+        		Bpmn2ModelerDocumentRootImpl documentRoot = (Bpmn2ModelerDocumentRootImpl)contents.get(0);
+				Definitions definitions = ModelUtil.getDefinitions(helper.getResource());
+        		try {
+					documentRoot.setDeliver(false);
+					documentRoot.eSetDeliver(false);
+					FeatureMap featureMap = documentRoot.getMixed();
+					if (featureMap.size()>0) {
+						// insert a comment before the Definitions node 
+						String comment = " origin at X="+(minX<0 ? minX : 0)+
+								" Y="+(minY<0 ? minY : 0)+" ";
+						if (featureMap.get(0).getEStructuralFeature() != XMLTypePackage.Literals.XML_TYPE_DOCUMENT_ROOT__COMMENT) {
+						    featureMap.add(0,XMLTypePackage.Literals.XML_TYPE_DOCUMENT_ROOT__COMMENT, comment);
+						}
+						else {
+							FeatureMap.Entry e = FeatureMapUtil.createEntry(XMLTypePackage.Literals.XML_TYPE_DOCUMENT_ROOT__COMMENT, comment);
+						    featureMap.set(0, e);
+						}
+					}
+					definitions.eSetDeliver(false);
+					definitions.setExporter(Activator.PLUGIN_ID);
+					String version = Platform.getBundle(Activator.PLUGIN_ID).getHeaders().get("Bundle-Version");
+					version = version.replaceAll(".qualifier", "");
+					definitions.setExporterVersion(version);
+        		}
+        		finally {
+    				documentRoot.setDeliver(true);
+    				documentRoot.eSetDeliver(true);
+					definitions.eSetDeliver(true);
+        		}
+        	}
 		}
 
 		protected XMLString createXMLString() {
@@ -976,13 +1017,18 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
         	if (contents.size()>0 && contents.get(0) instanceof Bpmn2ModelerDocumentRootImpl) {
         		documentRoot = (Bpmn2ModelerDocumentRootImpl)contents.get(0);
 				documentRoot.setDeliver(false);
+				documentRoot.eSetDeliver(false);
 			}
-        	
-			super.endSave(contents);
-			
-			if (documentRoot!=null) {
-				documentRoot.setDeliver(true);
-			}
+
+        	try {
+        		super.endSave(contents);
+        	}
+       		finally {
+				if (documentRoot!=null) {
+					documentRoot.setDeliver(true);
+					documentRoot.eSetDeliver(true);
+				}
+       		}
 		}
 
 		@Override
@@ -1175,6 +1221,30 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 					if (!((IExtensionValueAdapter)a).shouldSaveElement(o))
 						return;
 				}
+			}
+			
+			if (o instanceof BPMNLabel) {
+				if (!preferences.getSaveBPMNLabels())
+					return;
+			}
+			
+			if (o instanceof BPMNLabelStyle) {
+				// is anyone still using this BPMNLabelStyle?
+				// if not, get rid of it.
+				boolean save = false;
+				if (preferences.getSaveBPMNLabels()) {
+					Definitions definitions = ModelUtil.getDefinitions(o);
+					TreeIterator<EObject> iter = definitions.eAllContents();
+					while (iter.hasNext()) {
+						EObject eo = iter.next();
+						if (eo instanceof BPMNLabel) {
+							if (((BPMNLabel)eo).getLabelStyle() == o)
+								save = true;
+						}
+					}
+				}
+				if (!save)
+					return;
 			}
 
 			float oldX = 0, oldY = 0;
@@ -1550,18 +1620,11 @@ public class Bpmn2ModelerResourceImpl extends Bpmn2ResourceImpl {
 			else
 				s = super.getHREF(obj);
 			if (isQNameFeature) {
-				if (s!=null && s.contains("#")) { //$NON-NLS-1$
+				if (s != null && s.contains("#")) { //$NON-NLS-1$
 					// object is a reference possibly to another document
 					Import imp = importHandler.findImportForObject(resource, obj);
-					if (imp!=null) {
-						String localname = importHandler.getLocalnameForObject(obj);
-						if (localname!=null) {
-							String prefix = NamespaceUtil.getPrefixForNamespace(resource, imp.getNamespace());
-							if (prefix!=null) {
-								s = prefix + ":" + localname; //$NON-NLS-1$
-								return s;
-							}
-						}
+					if (imp != null) {
+						return importHandler.getQNameForObject(resource, obj);
 					}
 				}
 			}

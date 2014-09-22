@@ -126,12 +126,14 @@ public class FeatureSupport {
 	}
 
 	public static boolean isChoreographyParticipantBand(PictogramElement element) {
-		EObject container = element.eContainer();
-		if (container instanceof PictogramElement) {
-			PictogramElement containerElem = (PictogramElement) container;
-			Object bo = Graphiti.getLinkService().getBusinessObjectForLinkedPictogramElement(containerElem);
-			if (bo instanceof ChoreographyActivity) {
-				return true;
+		if (element!=null) {
+			EObject container = element.eContainer();
+			if (container instanceof PictogramElement) {
+				PictogramElement containerElem = (PictogramElement) container;
+				Object bo = Graphiti.getLinkService().getBusinessObjectForLinkedPictogramElement(containerElem);
+				if (bo instanceof ChoreographyActivity) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -588,7 +590,7 @@ public class FeatureSupport {
 						while (!(shape.getContainer() instanceof Diagram)) {
 							shape = shape.getContainer();
 						}
-						if (!list.contains(shape)) {
+						if (!list.contains(shape) && shape!=groupShape) {
 							list.add(shape);
 						}
 					}
@@ -753,14 +755,14 @@ public class FeatureSupport {
 			updateFeature.update(updateContext);
 			updateChanged = updateFeature.hasDoneChanges();
 		}
-		
+
 		if (layoutChanged)
 			FeatureSupport.updateLabel(fp, connection, null);
 		
 		// also update any Connections that are connected to this Connection
-		for (Shape shape : AnchorUtil.getConnectionPoints(connection)) {
-			updateConnections(fp, shape);
-		}
+//		for (Shape shape : AnchorUtil.getConnectionPoints(connection)) {
+//			updateConnections(fp, shape);
+//		}
 		return layoutChanged || updateChanged;
 	}
 
@@ -806,6 +808,7 @@ public class FeatureSupport {
 			}
 		}
 		updateConnections(fp, ac, alreadyUpdated);
+//		AnchorUtil.relocateAnchors((Shape)ac);
 	}
 
 	public static void updateCategoryValues(IFeatureProvider fp, List<ContainerShape> shapes) {
@@ -934,6 +937,28 @@ public class FeatureSupport {
 		return Graphiti.getPeService().getPropertyValue(shape, GraphitiConstants.LABEL_SHAPE) != null;
 	}
 
+	public static boolean isHidden(PictogramElement pe) {
+		if (Graphiti.getPeService().getPropertyValue(pe, GraphitiConstants.IS_HIDDEN)!=null)
+			return true;
+		return false;
+	}
+
+	public static boolean setHidden(PictogramElement pe, boolean hidden) {
+		if (hidden) {
+			pe.eSetDeliver(false);
+			Graphiti.getPeService().setPropertyValue(pe, GraphitiConstants.IS_HIDDEN, Boolean.TRUE.toString());
+			pe.setVisible(false);
+			pe.eSetDeliver(true);
+		}
+		else {
+			pe.eSetDeliver(false);
+			Graphiti.getPeService().removeProperty(pe, GraphitiConstants.IS_HIDDEN);
+			pe.setVisible(true);
+			pe.eSetDeliver(true);
+		}
+		return false;
+	}
+	
 	/**
 	 * Gets the owner {@link PictogramElement} of a Label from a given IContext
 	 * object. Label shapes are added by Feature Containers using a
@@ -981,6 +1006,19 @@ public class FeatureSupport {
 		de = BusinessObjectUtil.getFirstElementOfType(cs, DiagramElement.class);
 		if (de!=null)
 			return cs;
+		
+		// Messages attached to MessageFlows do not have a BPMNShape element, their
+		// visibility is controlled by a setting on the BPMNEdge for the MessageFlow
+		Message msg = BusinessObjectUtil.getFirstElementOfType(cs, Message.class);
+		if (msg!=null)
+			return cs;
+		// If this is the ContainerShape of the MessageFlow Message, then it is the label owner.
+		if (pe instanceof ContainerShape) {
+			Shape labelShape = BusinessObjectUtil.getFirstElementOfType(pe, Shape.class);
+			if (FeatureSupport.isLabelShape(labelShape))
+				return pe;
+		}
+
 		Connection c = BusinessObjectUtil.getFirstElementOfType(pe, Connection.class);
 		de = BusinessObjectUtil.getFirstElementOfType(c, DiagramElement.class);
 		if (de!=null)

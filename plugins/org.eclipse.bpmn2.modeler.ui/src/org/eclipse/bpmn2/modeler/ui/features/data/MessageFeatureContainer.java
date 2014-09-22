@@ -52,6 +52,7 @@ import org.eclipse.graphiti.features.IUpdateFeature;
 import org.eclipse.graphiti.features.context.IAddContext;
 import org.eclipse.graphiti.features.context.IContext;
 import org.eclipse.graphiti.features.context.ICreateContext;
+import org.eclipse.graphiti.features.context.IDeleteContext;
 import org.eclipse.graphiti.features.context.IMoveShapeContext;
 import org.eclipse.graphiti.features.context.IPictogramElementContext;
 import org.eclipse.graphiti.features.context.IResizeShapeContext;
@@ -84,8 +85,8 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 	public Object getApplyObject(IContext context) {
 		Object object = super.getApplyObject(context);
 		if (object instanceof Message &&
-				!isChoreographyMessage(context) &&
-				!isMessageFlowMessage(context)) {
+				!isChoreographyMessage(context)) { // &&
+//				!isMessageFlowMessage(context)) {
 			return object;
 		}
 		return null;
@@ -210,7 +211,6 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 			decorateShape(context, containerShape, businessObject);
 
 			peService.createChopboxAnchor(containerShape);
-			AnchorUtil.addFixedPointAnchors(containerShape, invisibleRect);
 			
 			return containerShape;
 		}
@@ -303,8 +303,7 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 		public Message createBusinessObject(ICreateContext context) {
 			changesDone = true;
 
-			Message message = null;
-			message = Bpmn2ModelerFactory.create(Message.class);
+			Message message = Bpmn2ModelerFactory.create(Message.class);
 			String oldName = message.getName();
 			message.setName(Messages.MessageFeatureContainer_New);
 			message.setId(null);
@@ -337,7 +336,8 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 					message.setId(null);
 					ModelUtil.setID(message);
 					message.setName(oldName);
-				} else {
+				}
+				else {
 					// and existing one
 					message = result;
 				}
@@ -352,6 +352,13 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 
 		public MoveMessageFeature(IFeatureProvider fp) {
 			super(fp);
+		}
+
+		@Override
+		public boolean canMoveShape(IMoveShapeContext context) {
+			if (isMessageFlowMessage(context)) 
+				return false;
+			return super.canMoveShape(context);
 		}
 
 		@Override
@@ -380,6 +387,21 @@ public class MessageFeatureContainer extends BaseElementFeatureContainer {
 
 		public DeleteMessageFeature(IFeatureProvider fp) {
 			super(fp);
+		}
+
+		@Override
+		public boolean canDelete(IDeleteContext context) {
+			if (isMessageFlowMessage(context)) 
+				return false;
+			return super.canDelete(context);
+		}
+
+		@Override
+		protected void deletePeEnvironment(PictogramElement pictogramElement) {
+			PictogramElement labelShape = FeatureSupport.getLabelShape(pictogramElement);
+			if (labelShape!=null)
+				Graphiti.getPeService().deletePictogramElement(labelShape);
+			super.deletePeEnvironment(pictogramElement);
 		}
 
 		@Override

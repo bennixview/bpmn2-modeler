@@ -69,22 +69,9 @@ public class ChoreographyTaskFeatureContainer extends AbstractChoreographyFeatur
 	@Override
 	public IDeleteFeature getDeleteFeature(IFeatureProvider fp) {
 		return new AbstractDefaultDeleteFeature(fp) {
-			
-			@Override
-			protected void deletePeEnvironment(PictogramElement pictogramElement){
-				if (pictogramElement instanceof ContainerShape) {
-					ContainerShape cShape = (ContainerShape) pictogramElement;
-					EList<Anchor> anchors = cShape.getAnchors();
-					for (Anchor anchor : anchors) {
-						deleteConnections(getFeatureProvider(), anchor.getIncomingConnections());
-						deleteConnections(getFeatureProvider(), anchor.getOutgoingConnections());
-					}
-					deleteContainer(getFeatureProvider(), cShape);
-				}
-			}
 
 			@Override
-			protected void deleteConnections(IFeatureProvider fp, EList<Connection> connections) {
+			protected void deleteConnections(IFeatureProvider fp, List<Connection> connections) {
 				List<Connection> con = new ArrayList<Connection>();
 				con.addAll(connections);
 				for (Connection connection : con) {

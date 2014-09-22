@@ -20,10 +20,15 @@ import org.eclipse.bpmn2.modeler.core.features.GraphitiConstants;
 import org.eclipse.bpmn2.modeler.core.features.MultiUpdateFeature;
 import org.eclipse.bpmn2.modeler.core.utils.ShapeDecoratorUtil;
 import org.eclipse.bpmn2.modeler.ui.ImageProvider;
+import org.eclipse.bpmn2.modeler.ui.features.activity.subprocess.CollapseFlowNodeFeature;
+import org.eclipse.bpmn2.modeler.ui.features.activity.subprocess.ExpandFlowNodeFeature;
+import org.eclipse.bpmn2.modeler.ui.features.activity.subprocess.PullupFeature;
+import org.eclipse.bpmn2.modeler.ui.features.activity.subprocess.PushdownFeature;
 import org.eclipse.emf.ecore.EClass;
 import org.eclipse.graphiti.features.IAddFeature;
 import org.eclipse.graphiti.features.ICreateFeature;
 import org.eclipse.graphiti.features.IFeatureProvider;
+import org.eclipse.graphiti.features.custom.ICustomFeature;
 import org.eclipse.graphiti.mm.pictograms.ContainerShape;
 
 public class SubChoreographyFeatureContainer extends AbstractChoreographyFeatureContainer {
@@ -58,7 +63,21 @@ public class SubChoreographyFeatureContainer extends AbstractChoreographyFeature
 		
 		return multiUpdate;
 	}
+
+	@Override
+	public ICustomFeature[] getCustomFeatures(IFeatureProvider fp) {
+		return super.getCustomFeatures(fp);
 	
+// FIXME: a SubChoreography should allow pushdown to a new Choreography top-level diagram
+//		ICustomFeature[] superFeatures = super.getCustomFeatures(fp);
+//		ICustomFeature[] thisFeatures = new ICustomFeature[2 + superFeatures.length];
+//		thisFeatures[0] = new PushdownFeature(fp);
+//		thisFeatures[1] = new PullupFeature(fp);
+//		for (int i=0; i<superFeatures.length; ++i)
+//			thisFeatures[2+i] = superFeatures[i];
+//		return thisFeatures;
+	}
+
 	public static class CreateSubChoreographyFeature extends AbstractCreateChoreographyActivityFeature<SubChoreography> {
 
 		public CreateSubChoreographyFeature(IFeatureProvider fp) {

@@ -288,14 +288,15 @@ public class ModelHandler {
 					if (horz) {
 						bounds.setX(100);
 						bounds.setY(100);
-						bounds.setWidth(ss.getDefaultWidth());
-						bounds.setHeight(ss.getDefaultHeight());
+						bounds.setHeight(ss.getDefaultWidth());
+						bounds.setWidth(ss.getDefaultHeight());
 					}
-					else {
+					else 
+					{
 						bounds.setX(100);
 						bounds.setY(100);
-						bounds.setWidth(ss.getDefaultHeight());
-						bounds.setHeight(ss.getDefaultWidth());
+						bounds.setHeight(ss.getDefaultHeight());
+						bounds.setWidth(ss.getDefaultWidth());
 					}
 					shape.setBounds(bounds);
 					shape.setIsHorizontal(horz);
@@ -311,14 +312,14 @@ public class ModelHandler {
 					if (horz) {
 						bounds.setX(100);
 						bounds.setY(350);
-						bounds.setWidth(ss.getDefaultWidth());
-						bounds.setHeight(ss.getDefaultHeight());
+						bounds.setHeight(ss.getDefaultWidth());
+						bounds.setWidth(ss.getDefaultHeight());
 					}
 					else {
 						bounds.setX(350);
 						bounds.setY(100);
-						bounds.setWidth(ss.getDefaultHeight());
-						bounds.setHeight(ss.getDefaultWidth());
+						bounds.setHeight(ss.getDefaultHeight());
+						bounds.setWidth(ss.getDefaultWidth());
 					}
 					shape.setBounds(bounds);
 					shape.setIsHorizontal(horz);
@@ -355,14 +356,14 @@ public class ModelHandler {
 					choreography.setName(name+Messages.ModelHandler_Choreography);
 					
 					Participant initiatingParticipant = create(Participant.class);
-					initiatingParticipant.setName(name+Messages.ModelHandler_Initiating_Participant);
+					initiatingParticipant.setName(Messages.ModelHandler_Initiating_Participant);
 
 //					Process initiatingProcess = createProcess();
 //					initiatingProcess.setName(name+" Initiating Process");
 //					initiatingParticipant.setProcessRef(initiatingProcess);
 					
 					Participant nonInitiatingParticipant = create(Participant.class);
-					nonInitiatingParticipant.setName(name+Messages.ModelHandler_Non_Initiating_Participant);
+					nonInitiatingParticipant.setName(Messages.ModelHandler_Non_Initiating_Participant);
 
 //					Process nonInitiatingProcess = createProcess();
 //					nonInitiatingProcess.setName(name+" Non-initiating Process");
@@ -372,7 +373,7 @@ public class ModelHandler {
 					choreography.getParticipants().add(nonInitiatingParticipant);
 					
 					ChoreographyTask task = create(ChoreographyTask.class);
-					task.setName(name+Messages.ModelHandler_Choreography_Task);
+					task.setName(Messages.ModelHandler_Choreography_Task);
 					task.getParticipantRefs().add(initiatingParticipant);
 					task.getParticipantRefs().add(nonInitiatingParticipant);
 					task.setInitiatingParticipantRef(initiatingParticipant);
@@ -672,26 +673,6 @@ public class ModelHandler {
 		return collaboration;
 	}
 	
-	private Collaboration getOrCreateCollaboration() {
-		Collaboration c = getCollaboration();
-		if (c!=null)
-			return c;
-		
-		final List<RootElement> rootElements = getDefinitions().getRootElements();
-		TransactionalEditingDomain domain = TransactionUtil.getEditingDomain(resource);
-		final Collaboration collaboration = create(Collaboration.class);
-		if (domain != null) {
-			domain.getCommandStack().execute(new RecordingCommand(domain) {
-
-				@Override
-				protected void doExecute() {
-					addCollaborationToRootElements(rootElements, collaboration);
-				}
-			});
-		}
-		return collaboration;
-	}
-	
 	private Collaboration getParticipantContainer(BPMNDiagram bpmnDiagram) {
 		if (bpmnDiagram==null) {
 			// return the first Collaboration or Choreography in the model hierarchy
@@ -724,30 +705,6 @@ public class ModelHandler {
 		Choreography choreography = create(Choreography.class);
 		getDefinitions().getRootElements().add(choreography);
 		return choreography;
-	}
-
-	private void addCollaborationToRootElements(final List<RootElement> rootElements, final Collaboration collaboration) {
-		Participant participant = create(Participant.class);
-		for (RootElement element : rootElements) {
-			if (element instanceof Process) {
-				participant.setProcessRef((Process) element);
-				break;
-			}
-		}
-		collaboration.getParticipants().add(participant);
-		rootElements.add(collaboration);
-	}
-
-	private void addChoreographyToRootElements(final List<RootElement> rootElements, final Choreography choreography) {
-		Participant participant = create(Participant.class);
-		for (RootElement element : rootElements) {
-			if (element instanceof Process) {
-				participant.setProcessRef((Process) element);
-				break;
-			}
-		}
-		choreography.getParticipants().add(participant);
-		rootElements.add(choreography);
 	}
 
 	public Bpmn2ResourceImpl getResource() {

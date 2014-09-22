@@ -12,6 +12,8 @@
  ******************************************************************************/
 package org.eclipse.bpmn2.modeler.core.features;
 
+import java.util.Hashtable;
+
 import org.eclipse.bpmn2.BaseElement;
 import org.eclipse.bpmn2.modeler.core.LifecycleEvent;
 import org.eclipse.bpmn2.modeler.core.LifecycleEvent.EventType;
@@ -24,9 +26,12 @@ import org.eclipse.graphiti.features.IFeatureProvider;
 import org.eclipse.graphiti.features.context.IContext;
 import org.eclipse.graphiti.features.context.ILayoutContext;
 import org.eclipse.graphiti.features.context.IPictogramElementContext;
+import org.eclipse.graphiti.features.context.impl.UpdateContext;
 import org.eclipse.graphiti.features.impl.AbstractLayoutFeature;
 import org.eclipse.graphiti.mm.pictograms.Connection;
+import org.eclipse.graphiti.mm.pictograms.Diagram;
 import org.eclipse.graphiti.mm.pictograms.PictogramElement;
+import org.eclipse.graphiti.services.Graphiti;
 
 /**
  * Default Graphiti {@code LayoutFeature} class for Connections.
@@ -39,7 +44,9 @@ public class DefaultLayoutBPMNConnectionFeature extends AbstractLayoutFeature {
 
 	/** True if changes were made by this feature. */
 	boolean hasDoneChanges = false;
-	
+	Diagram diagram;
+	Hashtable<Connection, IConnectionRouter> routers = new Hashtable<Connection, IConnectionRouter>();
+
 	/**
 	 * Instantiates a new default layout bpmn connection feature.
 	 *
@@ -87,34 +94,61 @@ public class DefaultLayoutBPMNConnectionFeature extends AbstractLayoutFeature {
 	public boolean layout(ILayoutContext context) {
 		if (canLayout(context)) {
 			Connection connection = (Connection) context.getPictogramElement();
-			BaseElement be = BusinessObjectUtil.getFirstBaseElement(connection);
-			if (be!=null) {
-				// get the user preference of routing style for this connection
-				Bpmn2Preferences preferences = Bpmn2Preferences.getInstance(be);
-				if (preferences!=null) {
-					ShapeStyle ss = preferences.getShapeStyle(be);
-					if (ss!=null) {
-						IFeatureProvider fp = getFeatureProvider();
-						IConnectionRouter router = null;
-						if (ss.getRoutingStyle() == RoutingStyle.Manhattan)
-							router = new ManhattanConnectionRouter(fp);
-						else if (ss.getRoutingStyle() == RoutingStyle.ManualBendpoint) {
-							router = new BendpointConnectionRouter(fp);
-							((BendpointConnectionRouter)router).setManualRouting(true);
-						}
-						else if (ss.getRoutingStyle() == RoutingStyle.AutomaticBendpoint) {
-							router = new BendpointConnectionRouter(fp);
-							((BendpointConnectionRouter)router).setManualRouting(false);
-						}
+			if (context.getProperty(GraphitiConstants.INITIAL_UPDATE) == Boolean.TRUE)
+				Graphiti.getPeService().setPropertyValue(connection, GraphitiConstants.INITIAL_UPDATE, Boolean.TRUE.toString());
+			diagram = getFeatureProvider().getDiagramTypeProvider().getDiagram();
+			// limit the number of iterations for recalculating other connections
+			int iterations = 0;
+			boolean repeat;
+			do {
+				repeat = false;
+				IConnectionRouter router = getRouter(connection);
+				hasDoneChanges |= router.route(connection);
 
-						if (router!=null) {
-							hasDoneChanges = router.route(connection);
-							router.dispose();
-						}
+				UpdateContext uc = new UpdateContext(connection);
+				getFeatureProvider().updateIfPossible(uc);
+				for (Connection c : diagram.getConnections()) {
+					router = getRouter(c);
+					if (router.canRoute(c) && router.routingNeeded(c)) {
+						router.route(c);
+
+						uc = new UpdateContext(c);
+						getFeatureProvider().updateIfPossible(uc);
+
+						repeat = true;
 					}
 				}
 			}
+			while (repeat && ++iterations < 3);
+			Graphiti.getPeService().removeProperty(connection, GraphitiConstants.INITIAL_UPDATE);
 		}
 		return hasDoneChanges;
+	}
+	
+	private IConnectionRouter getRouter(Connection connection) {
+		if (routers.containsKey(connection))
+			return routers.get(connection);
+		
+		IConnectionRouter router = null;
+		IFeatureProvider fp = getFeatureProvider();
+		BaseElement be = BusinessObjectUtil.getFirstBaseElement(connection);
+		if (be!=null) {
+			// get the user preference of routing style for this connection
+			ShapeStyle ss = ShapeStyle.getShapeStyle(be);
+			if (ss!=null) {
+				if (ss.getRoutingStyle() == RoutingStyle.MANHATTAN)
+					router = new ManhattanConnectionRouter(fp);
+				else if (ss.getRoutingStyle() == RoutingStyle.MANUAL) {
+					router = new BendpointConnectionRouter(fp);
+				}
+				else if (ss.getRoutingStyle() == RoutingStyle.AUTOMATIC) {
+					router = new AutomaticConnectionRouter(fp);
+				}
+			}
+		}
+		if (router==null)
+			router = new BendpointConnectionRouter(fp);
+		routers.put(connection, router);
+		return router;
 	}
 }

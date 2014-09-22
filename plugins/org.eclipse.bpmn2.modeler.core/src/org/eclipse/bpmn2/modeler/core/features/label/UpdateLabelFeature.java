@@ -33,6 +33,7 @@ import org.eclipse.bpmn2.modeler.core.utils.ModelUtil;
 import org.eclipse.dd.dc.Bounds;
 import org.eclipse.draw2d.geometry.Dimension;
 import org.eclipse.draw2d.geometry.Rectangle;
+import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.graphiti.datatypes.IDimension;
 import org.eclipse.graphiti.datatypes.ILocation;
 import org.eclipse.graphiti.features.IFeatureProvider;
@@ -41,6 +42,7 @@ import org.eclipse.graphiti.features.context.IContext;
 import org.eclipse.graphiti.features.context.IUpdateContext;
 import org.eclipse.graphiti.features.impl.Reason;
 import org.eclipse.graphiti.mm.algorithms.AbstractText;
+import org.eclipse.graphiti.mm.algorithms.GraphicsAlgorithm;
 import org.eclipse.graphiti.mm.algorithms.styles.Font;
 import org.eclipse.graphiti.mm.algorithms.styles.Point;
 import org.eclipse.graphiti.mm.pictograms.Connection;
@@ -49,7 +51,6 @@ import org.eclipse.graphiti.mm.pictograms.PictogramElement;
 import org.eclipse.graphiti.mm.pictograms.Shape;
 import org.eclipse.graphiti.services.Graphiti;
 import org.eclipse.graphiti.ui.services.GraphitiUi;
-import org.eclipse.graphiti.ui.services.IUiLayoutService;
 
 public class UpdateLabelFeature extends AbstractBpmn2UpdateFeature {
 
@@ -94,6 +95,15 @@ public class UpdateLabelFeature extends AbstractBpmn2UpdateFeature {
 			if (!newLabel.equals(oldLabel))
 				return Reason.createTrueReason(Messages.UpdateLabelFeature_TextChanged);
 			
+			// Workaround for Bug 440796
+			GraphicsAlgorithm labelGA = labelShape.getGraphicsAlgorithm();
+			int x = labelGA.getX();
+			if (x==0 || x==-90) {
+				Rectangle bounds = getLabelBounds(labelShape, false, null);
+				labelGA.eSetDeliver(false);
+				labelGA.setX(bounds.x);
+				labelGA.eSetDeliver(true);
+			}
 		}
 		return Reason.createFalseReason();
 	}
@@ -392,7 +402,8 @@ public class UpdateLabelFeature extends AbstractBpmn2UpdateFeature {
 			// location for the BPMNLabel coordinates.
 			ILocation absloc = Graphiti.getPeService().getLocationRelativeToDiagram(labelShape);
 			DIUtils.updateDILabel(ownerPE, absloc.getX(), absloc.getY(), w, h);
-			labelShape.setVisible(!text.isEmpty());
+			if (!FeatureSupport.isHidden(labelShape))
+				labelShape.setVisible(!text.isEmpty());
 			Graphiti.getPeService().removeProperty(labelShape, GraphitiConstants.LABEL_CHANGED);
 		}
 	}

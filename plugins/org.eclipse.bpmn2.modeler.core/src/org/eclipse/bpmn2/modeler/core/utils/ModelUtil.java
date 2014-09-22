@@ -170,8 +170,14 @@ public class ModelUtil {
 	private static Object getKey(Resource res) {
 		Assert.isTrue(res!=null);
 		// we may have more than one Bpmn2Resource in our ResourceSet asking for IDs
-		String key = Integer.toString(res.getResourceSet().hashCode());
-		key += "-" + res.getResourceSet().getResources().indexOf(res); //$NON-NLS-1$
+		String key = null;
+		if (res.getResourceSet()!=null) {
+			key = Integer.toString(res.getResourceSet().hashCode());
+			key += "-" + res.getResourceSet().getResources().indexOf(res); //$NON-NLS-1$
+		}
+		else {
+			key = Integer.toString(res.hashCode());
+		}
 		return key;
 	}
 	
@@ -392,10 +398,20 @@ public class ModelUtil {
 			feature = ModelDecorator.getAnyAttribute(obj,"name"); //$NON-NLS-1$
 		return feature!=null;
 	}
-
+	
+	public static String getCanonicalName(BaseElement element) {
+		if (element==null)
+			return "";
+		String name = getName(element);
+		if (name==null || name.isEmpty())
+			name = element.getId();
+		return name;
+	}
+	
 	public static String toCanonicalString(String anyName) {
 		// get rid of the "Impl" java suffix
 		anyName = anyName.replaceAll("Impl$", ""); //$NON-NLS-1$ //$NON-NLS-2$
+		
 		String displayName = ""; //$NON-NLS-1$
 		boolean first = true;
 		char[] chars = anyName.toCharArray();
@@ -409,8 +425,10 @@ public class ModelUtil {
 				c = Character.toUpperCase(c);
 				first = false;
 			}
-			if (c=='_')
+			if (!Character.isLetterOrDigit(c))
 				c = ' ';
+			if (c==' ')
+				first = true;
 			displayName += c;
 		}
 		return displayName.trim();
@@ -683,6 +701,9 @@ public class ModelUtil {
 			@Override
 			public boolean equals(Object that) {
 				String thisValue = this.toString();
+				if (that==null) {
+					return thisValue==null || thisValue.isEmpty();
+				}
 				String thatValue = that.toString();
 				if (thisValue==null) {
 					return thatValue==null;
@@ -1082,15 +1103,22 @@ public class ModelUtil {
 		Hashtable<String, EObject> map = new Hashtable<String, EObject>();
 		while (iter1.hasNext()) {
 			EObject o1 = iter1.next();
-			EStructuralFeature id1Feature = o1.eClass().getEIDAttribute();
-			if (id1Feature!=null) {
-				String id1 = (String)o1.eGet(id1Feature);
-				if (id1!=null) {
-					EObject o2 = map.get(id1);
-					if (o2!=null) {
-						list.add( new Tuple<EObject,EObject>(o1,o2) );
+			// Only test BaseElements, we can't be sure about foreign model objects.
+			if (o1 instanceof BaseElement) {
+				EStructuralFeature id1Feature = o1.eClass().getEIDAttribute();
+				if (id1Feature!=null) {
+					try {
+						String id1 = (String)o1.eGet(id1Feature);
+						if (id1!=null) {
+							EObject o2 = map.get(id1);
+							if (o2!=null) {
+								list.add( new Tuple<EObject,EObject>(o1,o2) );
+							}
+							map.put(id1, o1);
+						}
 					}
-					map.put(id1, o1);
+					catch (Exception e) {
+					}
 				}
 			}
 		}

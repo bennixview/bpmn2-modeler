@@ -20,17 +20,22 @@ import org.eclipse.bpmn2.Collaboration;
 import org.eclipse.bpmn2.Definitions;
 import org.eclipse.bpmn2.FlowElement;
 import org.eclipse.bpmn2.FlowElementsContainer;
+import org.eclipse.bpmn2.Gateway;
 import org.eclipse.bpmn2.Participant;
 import org.eclipse.bpmn2.RootElement;
+import org.eclipse.bpmn2.SubProcess;
 import org.eclipse.bpmn2.di.BPMNDiagram;
 import org.eclipse.bpmn2.di.BPMNPlane;
 import org.eclipse.bpmn2.modeler.core.adapters.ExtendedPropertiesProvider;
 import org.eclipse.bpmn2.modeler.core.di.DIUtils;
 import org.eclipse.bpmn2.modeler.core.utils.BusinessObjectUtil;
+import org.eclipse.bpmn2.modeler.core.utils.FeatureSupport;
 import org.eclipse.bpmn2.modeler.core.utils.ModelUtil;
 import org.eclipse.bpmn2.modeler.ui.Activator;
+import org.eclipse.bpmn2.modeler.ui.property.dialogs.ShowHideElementsDialog;
 import org.eclipse.emf.common.command.Command;
 import org.eclipse.emf.common.notify.Notification;
+import org.eclipse.emf.common.util.TreeIterator;
 import org.eclipse.emf.common.util.URI;
 import org.eclipse.emf.ecore.EObject;
 import org.eclipse.emf.ecore.EStructuralFeature;
@@ -49,6 +54,7 @@ import org.eclipse.graphiti.mm.pictograms.PictogramElement;
 import org.eclipse.jface.action.IAction;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.window.Window;
 import org.eclipse.osgi.util.NLS;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
@@ -132,7 +138,8 @@ public class DesignEditor extends BPMN2Editor {
 					if (object instanceof BaseElement) {
 						// If the selection came from the ContentOutline then navigate to
 						// diagram page corresponds to this flowElementsContainer if one exists
-						if (part instanceof ContentOutline) {
+//						if (part instanceof ContentOutline)
+						{
 							newBpmnDiagram = DIUtils.findBPMNDiagram((BaseElement)object, true);
 							Object o = DIUtils.findBPMNDiagram((BaseElement)object, false);
 							if (o==newBpmnDiagram)
@@ -284,11 +291,13 @@ public class DesignEditor extends BPMN2Editor {
 			tabFolder = new CTabFolder(parent, SWT.BOTTOM);
 			tabFolder.addSelectionListener(new SelectionAdapter() {
 				public void widgetSelected(SelectionEvent e) {
-					int pageIndex = tabFolder.indexOf((CTabItem) e.item);
-					CTabItem item = tabFolder.getItem(pageIndex);
-					BPMNDiagram bpmnDiagram = (BPMNDiagram) item.getData();
-					showDesignPageInternal(bpmnDiagram);
-					selectBpmnDiagram(bpmnDiagram);
+					if (!tabFolder.isLayoutDeferred()) {
+						int pageIndex = tabFolder.indexOf((CTabItem) e.item);
+						CTabItem item = tabFolder.getItem(pageIndex);
+						BPMNDiagram bpmnDiagram = (BPMNDiagram) item.getData();
+						showDesignPageInternal(bpmnDiagram);
+						selectBpmnDiagram(bpmnDiagram);
+					}
 				}
 			});
 			tabFolder.addTraverseListener(new TraverseListener() { 
@@ -391,14 +400,11 @@ public class DesignEditor extends BPMN2Editor {
 
 			@Override
 			protected boolean calculateEnabled() {
-				BPMNDiagram bpmnDiagram = getBpmnDiagram();
+				final BPMNDiagram bpmnDiagram = getBpmnDiagram();
 				BPMNPlane plane = bpmnDiagram.getPlane();
-				BaseElement process = plane.getBpmnElement();
-				List<Participant> participants = getModelHandler().getAll(Participant.class);
-				for (Participant p : participants) {
-					if (p.getProcessRef() == process)
-						return false;
-				}
+				BaseElement bpmnElement = plane.getBpmnElement();
+				if (bpmnElement instanceof SubProcess)
+					return false;
 				return true;
 			}
 
@@ -461,6 +467,66 @@ public class DesignEditor extends BPMN2Editor {
 			}
 		};
 		registry.registerAction(action);
+
+		// TODO: work in progress
+		// {@see BPMN2EditorDiagramBehavior}
+//		action = new WorkbenchPartAction(multipageEditor.getDesignEditor()) {
+//
+//			@Override
+//			protected void init() {
+//				super.init();
+//				setId("show.hide.elements"); //$NON-NLS-1$
+//			}
+//
+//			@Override
+//			public String getText() {
+//				return "Show or Hide Elements...";
+//			}
+//
+//			@Override
+//			protected boolean calculateEnabled() {
+//				return true;
+//			}
+//
+//			public void run() {
+//				ShowHideElementsDialog dialog = new ShowHideElementsDialog(getEditorSite().getShell());
+//				if (dialog.open()==Window.OK) {
+//					Diagram diagram = getDiagramTypeProvider().getDiagram();
+//					List<Integer> selections = dialog.getSelections();
+//					List<PictogramElement> hide = new ArrayList<PictogramElement>();
+//					List<PictogramElement> show = new ArrayList<PictogramElement>();
+//					TreeIterator<EObject> iter = diagram.eAllContents();
+//					while (iter.hasNext()) {
+//						EObject o = iter.next();
+//						if (o instanceof PictogramElement) {
+//							PictogramElement pe = (PictogramElement) o;
+//							if (FeatureSupport.isLabelShape(pe)) {
+//								PictogramElement owner = FeatureSupport.getLabelOwner(pe);
+//								BaseElement be = BusinessObjectUtil.getFirstBaseElement(owner);
+//								if (be instanceof Gateway) {
+//									if (selections.contains(ShowHideElementsDialog.GATEWAY_LABELS)) {
+//										if (!FeatureSupport.isHidden(pe))
+//											hide.add(pe);
+//									}
+//									else {
+//										if (FeatureSupport.isHidden(pe))
+//											show.add(pe);
+//									}
+//								}
+//							}
+//						}
+//					}
+//					for (PictogramElement pe : hide)
+//						FeatureSupport.setHidden(pe, true);
+//					
+//					for (PictogramElement pe : show)
+//						FeatureSupport.setHidden(pe, false);
+//
+//					getDiagramBehavior().refreshContent();
+//				}
+//			}
+//		};
+//		registry.registerAction(action);
 
 	}
 
@@ -552,12 +618,14 @@ public class DesignEditor extends BPMN2Editor {
 						}
 						for (int i=0; i<multipageEditor.getPageCount(); ++i) {
 							BPMNDiagram bpmnDiagram = multipageEditor.getBpmnDiagram(i);
-							if (bpmnDiagram == notifier) {
-								CTabItem item = multipageEditor.getTabItem(i);
-								String text = n.getNewStringValue();
-								if (text==null || text.isEmpty())
-									text = "Unnamed"; //$NON-NLS-1$
-								item.setText(text);
+							if (bpmnDiagram!=null) {
+								if (bpmnDiagram==notifier || bpmnDiagram.getPlane().getBpmnElement() == notifier) {
+									CTabItem item = multipageEditor.getTabItem(i);
+									String text = n.getNewStringValue();
+									if (text==null || text.isEmpty())
+										text = "Unnamed"; //$NON-NLS-1$
+									item.setText(text);
+								}
 							}
 						}
 					}

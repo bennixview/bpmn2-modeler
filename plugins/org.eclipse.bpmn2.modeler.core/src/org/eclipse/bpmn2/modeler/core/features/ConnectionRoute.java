@@ -15,16 +15,18 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
+import org.eclipse.bpmn2.modeler.core.utils.AnchorSite;
 import org.eclipse.bpmn2.modeler.core.utils.AnchorUtil;
-import org.eclipse.bpmn2.modeler.core.utils.AnchorUtil.BoundaryAnchor;
 import org.eclipse.bpmn2.modeler.core.utils.BusinessObjectUtil;
 import org.eclipse.bpmn2.modeler.core.utils.GraphicsUtil;
 import org.eclipse.bpmn2.modeler.core.utils.ModelUtil;
 import org.eclipse.graphiti.mm.algorithms.styles.Point;
 import org.eclipse.graphiti.mm.pictograms.Anchor;
 import org.eclipse.graphiti.mm.pictograms.Connection;
+import org.eclipse.graphiti.mm.pictograms.FixPointAnchor;
 import org.eclipse.graphiti.mm.pictograms.FreeFormConnection;
 import org.eclipse.graphiti.mm.pictograms.Shape;
+import org.eclipse.graphiti.services.Graphiti;
 
 /**
  * The Class ConnectionRoute.
@@ -100,26 +102,49 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		}
 		
 		/** The router. */
-		DefaultConnectionRouter router;
+		private DefaultConnectionRouter router;
 		/** The route id. */
-		int id;
+		private int id;
 		private List<Point> points = new ArrayList<Point>();
+		private List<Point> special = new ArrayList<Point>();
 		
 		/** The list of shape collisions. */
-		List<Collision> collisions = new ArrayList<Collision>();
+		private List<Collision> collisions = new ArrayList<Collision>();
 		
 		/** The list of connection crossings. */
-		List<Crossing> crossings = new ArrayList<Crossing>();
+		private List<Crossing> crossings = new ArrayList<Crossing>();
 		
 		/** The source shape of the route being calculated. */
-		Shape source;
+		private Shape source;
+		
+		/** The Source Anchor Location for this Route */
+		private AnchorSite sourceAnchorSite;
+		private Point sourceAnchorLocation;
 		
 		/** The target shape of the route being calculated. */
-		Shape target;
+		private Shape target;
+
+		/** The Target Anchor Location for this Route */
+		private  AnchorSite targetAnchorSite;
+		private Point targetAnchorLocation;
 		
-		boolean valid = true;
+		private boolean valid = true;
 		private int rank = 0;
 		
+		/**
+		 * @return the id
+		 */
+		public int getId() {
+			return id;
+		}
+
+		/**
+		 * @param id the id to set
+		 */
+		public void setId(int id) {
+			this.id = id;
+		}
+
 		/**
 		 * Instantiates a new connection route.
 		 *
@@ -130,7 +155,7 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		 */
 		public ConnectionRoute(DefaultConnectionRouter router, int id, Shape source, Shape target) {
 			this.router = router;
-			this.id = id;
+			this.setId(id);
 			this.source = source;
 			this.target = target;
 		}
@@ -151,22 +176,37 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		 * @param sourceAnchor the source anchor
 		 * @param targetAnchor the target anchor
 		 */
-		public void apply(FreeFormConnection ffc, Anchor sourceAnchor, Anchor targetAnchor) {
+		public void apply(FreeFormConnection ffc, FixPointAnchor sourceAnchor, FixPointAnchor targetAnchor) {
 			
-			// set connection's source and target anchors if they are Boundary Anchors
+			// set connection's source and target anchors
+			Point p = get(0);
 			if (sourceAnchor==null) {
-				BoundaryAnchor ba = AnchorUtil.findNearestBoundaryAnchor(source, this.get(0));
-				sourceAnchor = ba.anchor;
+				sourceAnchor = AnchorUtil.createAnchor(source, p);
 				ffc.setStart(sourceAnchor);
 			}
+			else {
+				AnchorUtil.moveAnchor(sourceAnchor, p);
+				if (sourceAnchorSite!=null) {
+					AnchorUtil.moveAnchor(sourceAnchor, sourceAnchorLocation);
+					AnchorSite.setSite(sourceAnchor, sourceAnchorSite);
+					AnchorUtil.adjustAnchors(source);
+				}
+			}
 			
+			p = get(size() - 1);
 			if (targetAnchor==null) {
 				// NOTE: a route with only a starting point indicates that it could not be calculated.
 				// In this case, make the connection a straight line from source to target.
-				Point p = this.get(this.size() - 1);
-				BoundaryAnchor ba = AnchorUtil.findNearestBoundaryAnchor(target, p);
-				targetAnchor = ba.anchor;
+				targetAnchor = AnchorUtil.createAnchor(target, p);
 				ffc.setEnd(targetAnchor);
+			}
+			else {
+				AnchorUtil.moveAnchor(targetAnchor, p);
+				if (targetAnchorSite!=null) {
+					AnchorUtil.moveAnchor(targetAnchor, targetAnchorLocation);
+					AnchorSite.setSite(targetAnchor, targetAnchorSite);
+					AnchorUtil.adjustAnchors(target);
+				}
 			}
 			
 			// add the bendpoints
@@ -181,37 +221,60 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		 */
 		public String toString() {
 			String text;
-			if (isValid()) {
-				BoundaryAnchor sa = AnchorUtil.findNearestBoundaryAnchor(source, get(0));
-				BoundaryAnchor ta = AnchorUtil.findNearestBoundaryAnchor(target, get(size()-1));
-				text = id+": length="+getLength()+" points="+getPoints().size()+ //$NON-NLS-1$ //$NON-NLS-2$
-						" source="+sa.locationType+" target="+ta.locationType; //$NON-NLS-1$ //$NON-NLS-2$
-				if (collisions.size()>0) {
-					text += " collisions="; //$NON-NLS-1$
-					Iterator<Collision> iter=collisions.iterator();
-					while (iter.hasNext()) {
-						Collision c = iter.next();
-						text += "'" + c.toString() + "'"; //$NON-NLS-1$ //$NON-NLS-2$
-						if (iter.hasNext())
-							text += ", "; //$NON-NLS-1$
-					}
-				}
-				if (crossings.size()>0) {
-					text += " crossings="; //$NON-NLS-1$
-					Iterator<Crossing> iter=crossings.iterator();
-					while (iter.hasNext()) {
-						Crossing c = iter.next();
-						text += "'" + c.toString() + "'"; //$NON-NLS-1$ //$NON-NLS-2$
-						if (iter.hasNext())
-							text += ", "; //$NON-NLS-1$
-					}
+			int size = getPoints().size();
+			Point p0 = size==0 ? null : getPoints().get(0);
+			Point p1 = size==0 ? null : getPoints().get(size-1);
+			String start = p0==null ? "null" : p0.getX()+","+p0.getY();
+			String end = p1==null ? "null" : p1.getX()+","+p1.getY();
+			
+			text = getId()+(valid?" :" : "X:")+
+					" rank="+rank+
+					" length="+getLength()+
+					" points="+getPoints().size() + //$NON-NLS-1$ //$NON-NLS-2$
+					" source="+sourceAnchorSite+" "+start+ //$NON-NLS-1$  //$NON-NLS-2$
+					" target="+targetAnchorSite+" "+end; //$NON-NLS-1$ //$NON-NLS-2$
+			if (collisions.size()>0) {
+				text += " collisions="; //$NON-NLS-1$
+				Iterator<Collision> iter=collisions.iterator();
+				while (iter.hasNext()) {
+					Collision c = iter.next();
+					text += "'" + c.toString() + "'"; //$NON-NLS-1$ //$NON-NLS-2$
+					if (iter.hasNext())
+						text += ", "; //$NON-NLS-1$
 				}
 			}
-			else
-				text = "not valid"; //$NON-NLS-1$
+			if (crossings.size()>0) {
+				text += " crossings="; //$NON-NLS-1$
+				Iterator<Crossing> iter=crossings.iterator();
+				while (iter.hasNext()) {
+					Crossing c = iter.next();
+					text += "'" + c.toString() + "'"; //$NON-NLS-1$ //$NON-NLS-2$
+					if (iter.hasNext())
+						text += ", "; //$NON-NLS-1$
+				}
+			}
 			return text;
 		}
-		
+
+		public void setSourceAnchor(FixPointAnchor sourceAnchor) {
+			this.sourceAnchorSite = AnchorSite.getSite(sourceAnchor);
+			this.sourceAnchorLocation = GraphicsUtil.createPoint(sourceAnchor);
+			
+		}
+
+		public void setTargetAnchor(FixPointAnchor targetAnchor) {
+			this.targetAnchorSite = AnchorSite.getSite(targetAnchor);
+			this.targetAnchorLocation = GraphicsUtil.createPoint(targetAnchor);
+		}
+
+		public AnchorSite getSourceAnchorSite() {
+			return sourceAnchorSite;
+		}
+
+		public AnchorSite getTargetAnchorSite() {
+			return targetAnchorSite;
+		}
+
 		/**
 		 * Adds the.
 		 *
@@ -221,12 +284,30 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		public boolean add(Point newPoint) {
 			for (Point p : getPoints()) {
 				if (GraphicsUtil.pointsEqual(newPoint, p)) {
-					valid = false;
+					setValid(false);
 					return false;
 				}
 			}
-			getPoints().add(newPoint);
+			getPoints().add(GraphicsUtil.createPoint(newPoint));
 			return true;
+		}
+		
+		public boolean contains(Point newPoint) {
+			for (Point p : getPoints()) {
+				if (GraphicsUtil.pointsEqual(newPoint, p)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		
+		public void addSpecial(Point p) {
+			if (p!=null)
+				special.add(p);
+		}
+		
+		public boolean isSpecial(Point p) {
+			return special.contains(p);
 		}
 		
 		/**
@@ -273,8 +354,8 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		/**
 		 * Sets the valid.
 		 */
-		public void setValid() {
-			valid = true;
+		public void setValid(boolean valid) {
+			this.valid = valid;
 		}
 		
 		/**
@@ -327,36 +408,42 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 		@Override
 		public int compare(ConnectionRoute o1, ConnectionRoute o2) {
 			int i = 0;
-			if (o1.isValid()) {
-				if (o2.isValid()) {
+			int v1 = o1.isValid() ? 1 : 0;
+			int v2 = o2.isValid() ? 1 : 0;
+			i = v2 - v1;
+			if (i==0) {
+				i = o1.collisions.size() - o2.collisions.size();
+				if (i==0) {
 					i = o1.getRank() - o2.getRank();
 					if (i==0) {
-						i = o1.collisions.size() - o2.collisions.size();
+						i = o1.crossings.size() - o2.crossings.size();
 						if (i==0) {
-							// TODO: figure out why connection crossing detection isn't working!
-//							i = o1.crossings.size() - o2.crossings.size();
-							if (i==0) {
+							i = o1.getLength() - o2.getLength();
+							if (i==0)
+							{
 								i = o1.getPoints().size() - o2.getPoints().size();
-								if (i==0)
-								{
-									i = o1.getLength() - o2.getLength();
-//									if (i==0) {
-//										BoundaryAnchor ba1 = AnchorUtil.findNearestBoundaryAnchor(source, o1.get(0));
-//										BoundaryAnchor ba2 = AnchorUtil.findNearestBoundaryAnchor(source, o2.get(0));
-//
-//										i = AnchorLocation.valueOf(ba1.locationType) - (int)ba2.locationType;
-//									}
-								}
 							}
 						}
 					}
-					return i;
+//					else {
+//						// pick the shorter route
+//						float dl = Math.abs(o1.getLength() - o2.getLength());
+//						float sl = (o1.getLength() + o2.getLength()) / 2;
+//						dl = dl/sl;
+//						if ( dl > 0.5)
+//							return o1.getLength() - o2.getLength();
+//					}
 				}
-				return -1;
 			}
-			else if (!o2.isValid())
-				return 0;
-			return 1;
+			else {
+				// pick the shorter route
+				float dl = Math.abs(o1.getLength() - o2.getLength());
+				float sl = (o1.getLength() + o2.getLength()) / 2;
+				dl = dl/sl;
+				if ( dl > 0.5)
+					return o1.getLength() - o2.getLength();
+			}
+			return i;
 		}
 
 		private boolean removeUnusedPoints() {
@@ -365,20 +452,29 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 			Point p1 = getPoints().get(0);
 			for (int i=1; i<getPoints().size()-1; ++i) {
 				Point p2 = getPoints().get(i);
-				if (i+1 < getPoints().size()) {
-					// remove unnecessary bendpoints: two consecutive
-					// horizontal or vertical line segments
-					Point p3 = getPoints().get(i+1);
-					int x1 = p1.getX();
-					int x2 = p2.getX();
-					int x3 = p3.getX();
-					int y1 = p1.getY();
-					int y2 = p2.getY();
-					int y3 = p3.getY();
-					if (
-							(GraphicsUtil.isVertical(p1,p2) && GraphicsUtil.isVertical(p2,p3) && ((y1<y2 && y2<y3) || y1>y2 && y2>y3)) ||
-							(GraphicsUtil.isHorizontal(p1,p2) && GraphicsUtil.isHorizontal(p2,p3) && ((x1<x2 && x2<x3) || x1>x2 && x2>x3))
-					) {
+				if (!isSpecial(p2) && i+1 < getPoints().size()) {
+					boolean remove = false;
+					if (GraphicsUtil.pointsEqual(p1, p2)) {
+						remove = true;
+					}
+					else {
+						// remove unnecessary bendpoints: two consecutive
+						// horizontal or vertical line segments
+						Point p3 = getPoints().get(i+1);
+						int x1 = p1.getX();
+						int x2 = p2.getX();
+						int x3 = p3.getX();
+						int y1 = p1.getY();
+						int y2 = p2.getY();
+						int y3 = p3.getY();
+						if (
+								(GraphicsUtil.isVertical(p1,p2) && GraphicsUtil.isVertical(p2,p3) && ((y1<y2 && y2<y3) || y1>y2 && y2>y3)) ||
+								(GraphicsUtil.isHorizontal(p1,p2) && GraphicsUtil.isHorizontal(p2,p3) && ((x1<x2 && x2<x3) || x1>x2 && x2>x3))
+						) {
+							remove = true;
+						}
+					}
+					if (remove) {
 						getPoints().remove(i);
 						// look at these set of points again
 						--i;
@@ -397,56 +493,58 @@ public class ConnectionRoute implements Comparable<ConnectionRoute>, Comparator<
 			Point p1 = getPoints().get(1);
 			for (int i=2; i<getPoints().size()-2; ++i) {
 				Point p2 = getPoints().get(i);
-				if (i+2 < getPoints().size()) {
+				if (!isSpecial(p2) && i+2 < getPoints().size()) {
 					Point p3 = getPoints().get(i+1);
-					Point p4 = getPoints().get(i+2);
-					if (GraphicsUtil.isHorizontal(p1,p2) && GraphicsUtil.isVertical(p2,p3) && GraphicsUtil.isHorizontal(p3,p4)) {
-						Point p = GraphicsUtil.createPoint(p1.getX(), p3.getY());
-						if (router.getCollision(p1,p)==null) {
-							getPoints().set(i+1, p);
-							getPoints().remove(p2);
-							getPoints().remove(p3);
-							--i;
-							changed = true;
+					if (!isSpecial(p3)) {
+						Point p4 = getPoints().get(i+2);
+						if (GraphicsUtil.isHorizontal(p1,p2) && GraphicsUtil.isVertical(p2,p3) && GraphicsUtil.isHorizontal(p3,p4)) {
+							Point p = GraphicsUtil.createPoint(p1.getX(), p3.getY());
+							if (router.getCollision(p1,p)==null) {
+								getPoints().set(i+1, p);
+								getPoints().remove(p2);
+								getPoints().remove(p3);
+								--i;
+								changed = true;
+							}
+	
+	//						int x1 = p1.getX();
+	//						int x2 = p2.getX();
+	//						int x4 = p4.getX();
+	//						if ((x1 < x4 && x4 < x2) || (x1 > x4 && x4 > x2)) {
+	//							// this forms a horizontal "U" - remove if the new configuration does not cause a collision
+	//							Point p = GraphicsUtil.createPoint(x4, p2.getY());
+	//							if (router.getCollision(p,p4)==null) {
+	//								getPoints().set(i, p);
+	//								getPoints().remove(p3);
+	//								--i;
+	//								changed = true;
+	//							}
+	//						}
 						}
-
-//						int x1 = p1.getX();
-//						int x2 = p2.getX();
-//						int x4 = p4.getX();
-//						if ((x1 < x4 && x4 < x2) || (x1 > x4 && x4 > x2)) {
-//							// this forms a horizontal "U" - remove if the new configuration does not cause a collision
-//							Point p = GraphicsUtil.createPoint(x4, p2.getY());
-//							if (router.getCollision(p,p4)==null) {
-//								getPoints().set(i, p);
-//								getPoints().remove(p3);
-//								--i;
-//								changed = true;
-//							}
-//						}
-					}
-					else if (GraphicsUtil.isVertical(p1,p2) && GraphicsUtil.isHorizontal(p2,p3) && GraphicsUtil.isVertical(p3,p4)) {
-						Point p = GraphicsUtil.createPoint(p3.getX(), p1.getY());
-						if (router.getCollision(p1,p)==null) {
-							getPoints().set(i+1, p);
-							getPoints().remove(p2);
-							getPoints().remove(p3);
-							--i;
-							changed = true;
+						else if (GraphicsUtil.isVertical(p1,p2) && GraphicsUtil.isHorizontal(p2,p3) && GraphicsUtil.isVertical(p3,p4)) {
+							Point p = GraphicsUtil.createPoint(p3.getX(), p1.getY());
+							if (router.getCollision(p1,p)==null) {
+								getPoints().set(i+1, p);
+								getPoints().remove(p2);
+								getPoints().remove(p3);
+								--i;
+								changed = true;
+							}
+	
+	//						int y1 = p1.getY();
+	//						int y2 = p2.getY();
+	//						int y4 = p4.getY();
+	//						if ((y1 < y4 && y4 < y2) || (y1 > y4 && y4 > y2)) {
+	//							// this forms a vertical "U"
+	//							p = GraphicsUtil.createPoint(p2.getX(), y4);
+	//							if (router.getCollision(p,p4)==null) {
+	//								getPoints().set(i, p);
+	//								getPoints().remove(p3);
+	//								--i;
+	//								changed = true;
+	//							}
+	//						}
 						}
-
-//						int y1 = p1.getY();
-//						int y2 = p2.getY();
-//						int y4 = p4.getY();
-//						if ((y1 < y4 && y4 < y2) || (y1 > y4 && y4 > y2)) {
-//							// this forms a vertical "U"
-//							p = GraphicsUtil.createPoint(p2.getX(), y4);
-//							if (router.getCollision(p,p4)==null) {
-//								getPoints().set(i, p);
-//								getPoints().remove(p3);
-//								--i;
-//								changed = true;
-//							}
-//						}
 					}
 				}
 				p1 = p2;

@@ -212,13 +212,13 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 			FixPointAnchor anchor;
 			
 			if (newObject instanceof StartEvent || (len0 < len1 && !(newObject instanceof EndEvent))) {
-				anchor = AnchorUtil.findNearestAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
+				anchor = AnchorUtil.createAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
 				rc = new ReconnectionContext(connection, connection.getStart(), anchor, targetLocation);
 				rc.setReconnectType(ReconnectionContext.RECONNECT_SOURCE);
 				rc.setTargetPictogramElement(containerShape);
 			}
 			else {
-				anchor = AnchorUtil.findNearestAnchor(oldTargetContainer, GraphicsUtil.getShapeCenter(containerShape));
+				anchor = AnchorUtil.createAnchor(oldTargetContainer, GraphicsUtil.getShapeCenter(containerShape));
 				rc = new ReconnectionContext(connection, connection.getEnd(), anchor, targetLocation);
 				rc.setReconnectType(ReconnectionContext.RECONNECT_TARGET);
 				rc.setTargetPictogramElement(containerShape);
@@ -232,17 +232,17 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 				if (len0 < len1) {
 					ccc.setSourcePictogramElement(oldSourceContainer);
 					ccc.setTargetPictogramElement(containerShape);
-					anchor = AnchorUtil.findNearestAnchor(oldSourceContainer, GraphicsUtil.getShapeCenter(containerShape));
+					anchor = AnchorUtil.createAnchor(oldSourceContainer, GraphicsUtil.getShapeCenter(containerShape));
 					ccc.setSourceAnchor(anchor);
-					anchor = AnchorUtil.findNearestAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
+					anchor = AnchorUtil.createAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
 					ccc.setTargetAnchor(anchor);
 				}
 				else {
 					ccc.setSourcePictogramElement(containerShape);
 					ccc.setTargetPictogramElement(oldTargetContainer);
-					anchor = AnchorUtil.findNearestAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
+					anchor = AnchorUtil.createAnchor(containerShape, GraphicsUtil.getShapeCenter(oldTargetContainer));
 					ccc.setSourceAnchor(anchor);
-					anchor = AnchorUtil.findNearestAnchor(oldTargetContainer, GraphicsUtil.getShapeCenter(containerShape));
+					anchor = AnchorUtil.createAnchor(oldTargetContainer, GraphicsUtil.getShapeCenter(containerShape));
 					ccc.setTargetAnchor(anchor);
 				}
 				
@@ -278,12 +278,7 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 		}
 		if (context.getHeight() > 0)
 			return context.getHeight();
-		int h = getHeight();
-		int w = getWidth();
-		if (!isHorizontal(context)) {
-			return Math.max(w, h);
-		}
-		return Math.min(w, h);
+		return getHeight();
 	}
 	
 	/**
@@ -302,12 +297,7 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 		}
 		if (context.getWidth() > 0)
 			return context.getWidth();
-		int h = getHeight();
-		int w = getWidth();
-		if (isHorizontal(context)) {
-			return Math.max(w, h);
-		}
-		return Math.min(w, h);
+		return getWidth();
 	}
 	
 	/**
@@ -315,7 +305,7 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 	 *
 	 * @return the height
 	 */
-	private int getHeight() {
+	protected int getHeight() {
 		ShapeStyle ss = preferences.getShapeStyle(getBusinessObjectType());
 		return ss.getDefaultHeight();
 	}
@@ -325,7 +315,7 @@ public abstract class AbstractBpmn2AddFeature<T extends BaseElement>
 	 *
 	 * @return the width
 	 */
-	private int getWidth() {
+	protected int getWidth() {
 		ShapeStyle ss = preferences.getShapeStyle(getBusinessObjectType());
 		return ss.getDefaultWidth();
 	}
