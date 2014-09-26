@@ -81,31 +81,20 @@ import org.eclipse.core.resources.IResource;
 import org.eclipse.core.resources.IResourceVisitor;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
-import org.eclipse.emf.common.command.Command;
 import org.eclipse.emf.common.notify.Adapter;
-import org.eclipse.emf.common.notify.Notification;
 import org.eclipse.emf.ecore.EObject;
-import org.eclipse.emf.transaction.NotificationFilter;
-import org.eclipse.emf.transaction.ResourceSetChangeEvent;
-import org.eclipse.emf.transaction.ResourceSetListener;
-import org.eclipse.emf.transaction.RollbackException;
-import org.eclipse.graphiti.ui.editor.DiagramEditor;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.resource.ImageDescriptor;
-import org.eclipse.jface.viewers.ISelection;
-import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.IEditorInput;
 import org.xml.sax.InputSource;
 
-@SuppressWarnings("restriction")
-public class JBPM5RuntimeExtension implements IBpmn2RuntimeExtension, ResourceSetListener {
+public class JBPM5RuntimeExtension implements IBpmn2RuntimeExtension {
 	
 	public final static String JBPM5_RUNTIME_ID = "org.jboss.runtime.jbpm5"; //$NON-NLS-1$
 	
 	private static final String DROOLS_NAMESPACE = "http://www.jboss.org/drools"; //$NON-NLS-1$
 	private List<WorkItemDefinition> workItemDefinitions;
-	private static boolean initialized = false;
 	
 	/* (non-Javadoc)
 	 * Check if the given input file is a drools-generated (jBPM) process file.
@@ -143,38 +132,29 @@ public class JBPM5RuntimeExtension implements IBpmn2RuntimeExtension, ResourceSe
 	@Override
 	public void notify(LifecycleEvent event) {
 		if (event.eventType == EventType.EDITOR_INITIALIZED) {
-			if (!initialized) {
-				// Register all of our Property Tab Detail overrides here. 
-		        PropertiesCompositeFactory.register(Activity.class, JbpmActivityDetailComposite.class);
-		        PropertiesCompositeFactory.register(DataInput.class, JbpmDataAssociationDetailComposite.class);
-		        PropertiesCompositeFactory.register(DataOutput.class, JbpmDataAssociationDetailComposite.class);
-		        PropertiesCompositeFactory.register(Event.class, JbpmCommonEventDetailComposite.class);
-		        PropertiesCompositeFactory.register(Gateway.class, JbpmGatewayDetailComposite.class);
-		        PropertiesCompositeFactory.register(GlobalType.class, GlobalTypeDetailComposite.class);
-		        PropertiesCompositeFactory.register(ImportType.class, JbpmImportTypeDetailComposite.class);
-		        PropertiesCompositeFactory.register(ItemDefinition.class, JbpmItemDefinitionListComposite.class);
-		        PropertiesCompositeFactory.register(ManualTask.class, JbpmManualTaskDetailComposite.class);
-		        PropertiesCompositeFactory.register(Message.class, JbpmMessageDetailComposite.class);
-		        PropertiesCompositeFactory.register(Message.class, JbpmMessageListComposite.class);
-		        PropertiesCompositeFactory.register(MultiInstanceLoopCharacteristics.class, JbpmMultiInstanceDetailComposite.class);
-		        PropertiesCompositeFactory.register(ReceiveTask.class, JbpmReceiveTaskDetailComposite.class);
-		        PropertiesCompositeFactory.register(ScriptTask.class, JbpmScriptTaskDetailComposite.class);
-		        PropertiesCompositeFactory.register(SendTask.class, JbpmSendTaskDetailComposite.class);
-		        PropertiesCompositeFactory.register(SequenceFlow.class, JbpmSequenceFlowDetailComposite.class);
-		        PropertiesCompositeFactory.register(Task.class, JbpmTaskDetailComposite.class);
-				PropertiesCompositeFactory.register(ItemDefinition.class, JbpmItemDefinitionDetailComposite.class);
-				PropertiesCompositeFactory.register(Interface.class, JbpmInterfaceDetailComposite.class);
-		        initialized = true;
-			}
+			// Register all of our Property Tab Detail overrides here. 
+	        PropertiesCompositeFactory.register(Activity.class, JbpmActivityDetailComposite.class);
+	        PropertiesCompositeFactory.register(DataInput.class, JbpmDataAssociationDetailComposite.class);
+	        PropertiesCompositeFactory.register(DataOutput.class, JbpmDataAssociationDetailComposite.class);
+	        PropertiesCompositeFactory.register(Event.class, JbpmCommonEventDetailComposite.class);
+	        PropertiesCompositeFactory.register(Gateway.class, JbpmGatewayDetailComposite.class);
+	        PropertiesCompositeFactory.register(GlobalType.class, GlobalTypeDetailComposite.class);
+	        PropertiesCompositeFactory.register(ImportType.class, JbpmImportTypeDetailComposite.class);
+	        PropertiesCompositeFactory.register(ItemDefinition.class, JbpmItemDefinitionListComposite.class);
+	        PropertiesCompositeFactory.register(ManualTask.class, JbpmManualTaskDetailComposite.class);
+	        PropertiesCompositeFactory.register(Message.class, JbpmMessageDetailComposite.class);
+	        PropertiesCompositeFactory.register(Message.class, JbpmMessageListComposite.class);
+	        PropertiesCompositeFactory.register(MultiInstanceLoopCharacteristics.class, JbpmMultiInstanceDetailComposite.class);
+	        PropertiesCompositeFactory.register(ReceiveTask.class, JbpmReceiveTaskDetailComposite.class);
+	        PropertiesCompositeFactory.register(ScriptTask.class, JbpmScriptTaskDetailComposite.class);
+	        PropertiesCompositeFactory.register(SendTask.class, JbpmSendTaskDetailComposite.class);
+	        PropertiesCompositeFactory.register(SequenceFlow.class, JbpmSequenceFlowDetailComposite.class);
+	        PropertiesCompositeFactory.register(Task.class, JbpmTaskDetailComposite.class);
+			PropertiesCompositeFactory.register(ItemDefinition.class, JbpmItemDefinitionDetailComposite.class);
+			PropertiesCompositeFactory.register(Interface.class, JbpmInterfaceDetailComposite.class);
 			
-			DiagramEditor editor = (DiagramEditor) event.target;
-			ISelection sel = editor.getEditorSite().getWorkbenchWindow().getSelectionService().getSelection();
-			if (sel instanceof IStructuredSelection) {
-				Object o = ((IStructuredSelection)sel).getFirstElement();
-				// TODO: if selection came from a Guvnor Repository view, this will be a
-				// org.guvnor.tools.views.model.TreeObject - figure out how to add this dependency.
-				// In this case we may want to explicitly make the editor read-only
-			}
+			// TODO: if file was opened from a Guvnor Repository view (or git in jBPM 6)
+			// we may want to explicitly make the editor read-only
 	
 			IProject project = Bpmn2Preferences.getActiveProject();
 			if (project != null) {
@@ -232,8 +212,30 @@ public class JBPM5RuntimeExtension implements IBpmn2RuntimeExtension, ResourceSe
 					e.printStackTrace();
 				}
 			}
-			
-			editor.getEditingDomain().addResourceSetListener(this);
+		}
+		else if (event.eventType == EventType.BUSINESSOBJECT_CREATED) {
+			EObject object = (EObject) event.target;
+			// Add a name change adapter to every one of these objects.
+			// See my rant in ProcessVariableNameChangeAdapter...
+			if (object instanceof org.eclipse.bpmn2.Property ||
+					object instanceof DataObject ||
+					object instanceof Message ||
+					object instanceof Signal ||
+					object instanceof Escalation ||
+					object instanceof GlobalType ||
+					object instanceof DataInput) {
+				boolean found = false;
+				for (Adapter a : ((EObject)object).eAdapters()) {
+					if (a instanceof ProcessVariableNameChangeAdapter) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					ProcessVariableNameChangeAdapter a = new ProcessVariableNameChangeAdapter();
+					object.eAdapters().add(a);
+				}
+			}
 		}
 	}
 	
@@ -506,72 +508,4 @@ public class JBPM5RuntimeExtension implements IBpmn2RuntimeExtension, ResourceSe
 			return iconResources;
 		}
 	}
-
-	@Override
-	public NotificationFilter getFilter() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public Command transactionAboutToCommit(ResourceSetChangeEvent event) throws RollbackException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public void resourceSetChanged(ResourceSetChangeEvent event) {
-		for (Notification n : event.getNotifications()) {
-			EObject object = null;
-			if (n.getEventType() == Notification.ADD) {
-				if (n.getNewValue() instanceof EObject) {
-					object = (EObject)n.getNewValue();
-				}
-			}
-			else {
-				if (n.getNotifier() instanceof EObject) {
-					object = (EObject)n.getNotifier();
-				}
-			}
-			if (object instanceof org.eclipse.bpmn2.Property ||
-					object instanceof DataObject ||
-					object instanceof Message ||
-					object instanceof Signal ||
-					object instanceof Escalation ||
-					object instanceof GlobalType ||
-					(object instanceof DataInput && object.eContainer() instanceof MultiInstanceLoopCharacteristics) ) {
-				boolean found = false;
-				for (Adapter a : ((EObject)object).eAdapters()) {
-					if (a instanceof ProcessVariableNameChangeAdapter) {
-						found = true;
-						break;
-					}
-				}
-				if (!found) {
-					ProcessVariableNameChangeAdapter a = new ProcessVariableNameChangeAdapter();
-					object.eAdapters().add(a);
-				}
-			}
-		}
-		
-	}
-
-	@Override
-	public boolean isAggregatePrecommitListener() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public boolean isPrecommitOnly() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
-	@Override
-	public boolean isPostcommitOnly() {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
 }
