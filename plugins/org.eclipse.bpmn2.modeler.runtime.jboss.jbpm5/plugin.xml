@@ -119,6 +119,15 @@
 		</propertyTab>
 
 		<propertyTab
+			id="bpmn2.jbpm.AdHocSubProcess.tab"
+			replaceTab="org.eclipse.bpmn2.modeler.adHocSubProcess.tab"
+			afterTab="org.eclipse.bpmn2.modeler.description.tab"
+			class="org.eclipse.bpmn2.modeler.runtime.jboss.jbpm5.property.JbpmAdHocSubProcessPropertySection"
+			type="org.eclipse.bpmn2.AdHocSubProcess"
+			label="%propertyTab.label.AdHocSubProcess">
+		</propertyTab>
+
+		<propertyTab
 	        id="bpmn2.jbpm.scriptTask.tab"
 	        replaceTab="org.eclipse.bpmn2.modeler.scriptTask.tab"
 			afterTab="org.eclipse.bpmn2.modeler.description.tab"
@@ -852,6 +861,7 @@
 			<enable object="ReceiveTask" feature="messageRef"/>
 			<enable object="ReceiveTask" feature="name"/>
 			<enable object="ReceiveTask" feature="operationRef"/>
+			<enable object="Resource" feature="name"/>
 			<enable object="RootElement" feature="extensionValues"/>
 			<enable object="ScriptTask" feature="isForCompensation"/>
 			<enable object="ScriptTask" feature="name"/>

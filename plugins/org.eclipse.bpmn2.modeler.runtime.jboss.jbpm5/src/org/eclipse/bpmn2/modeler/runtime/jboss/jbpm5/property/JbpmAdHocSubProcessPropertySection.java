@@ -13,24 +13,29 @@
 
 package org.eclipse.bpmn2.modeler.runtime.jboss.jbpm5.property;
 
+import org.eclipse.bpmn2.Bpmn2Package;
 import org.eclipse.bpmn2.modeler.core.merrimac.clad.AbstractDetailComposite;
-import org.eclipse.bpmn2.modeler.ui.property.tasks.TaskPropertySection;
+import org.eclipse.emf.ecore.EObject;
 import org.eclipse.swt.widgets.Composite;
 
 /**
  * @author Bob Brodt
  *
  */
-public class JbpmTaskPropertySection extends TaskPropertySection {
+public class JbpmAdHocSubProcessPropertySection extends JbpmActivityPropertySection {
 
 	@Override
 	protected AbstractDetailComposite createSectionRoot() {
-		return new JbpmTaskDetailComposite(this);
+		return new JbpmAdHocSubProcessDetailComposite(this);
 	}
 
 	@Override
 	public AbstractDetailComposite createSectionRoot(Composite parent, int style) {
-		return new JbpmTaskDetailComposite(parent,style);
+		return new JbpmAdHocSubProcessDetailComposite(parent,style);
 	}
 
+	@Override
+	public boolean appliesTo(EObject eObj) {
+		return eObj.eClass() == Bpmn2Package.eINSTANCE.getAdHocSubProcess();
+	}
 }
